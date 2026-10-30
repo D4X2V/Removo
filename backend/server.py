@@ -19,7 +19,8 @@ from .engine import (
     AVAILABLE_MODELS,
     _SESSIONS_CACHE,
     warmup_model_async,
-    get_session
+    get_session,
+    get_active_provider
 )
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -30,7 +31,7 @@ CONFIG_PATH = BASE_DIR / "config.json"
 DEFAULT_CONFIG = {
     "output_folder": "",
     "auto_save": True,
-    "default_model": "bria-rmbg",
+    "default_model": "isnet-general-use",
     "preload_on_startup": True,
     "output_format": "png",
     "overwrite_existing": False,
@@ -60,7 +61,7 @@ def save_config(cfg: dict) -> dict:
 async def lifespan(app: FastAPI):
     cfg = load_config()
     if cfg.get("preload_on_startup", True):
-        warmup_model_async(cfg.get("default_model", "bria-rmbg"), delay=2.5)
+        warmup_model_async(cfg.get("default_model", "isnet-general-use"), delay=1.0)
     yield
 
 app = FastAPI(title="Removo", version="2.0.0", lifespan=lifespan)

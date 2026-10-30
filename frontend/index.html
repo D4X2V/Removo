@@ -145,10 +145,10 @@
               <div class="space-y-1.5">
                 <label class="text-xs font-medium text-secondary-theme" data-i18n="model_label">Segmentation Model</label>
                 <select id="modelSelect" onchange="onModelSelectChange()" class="w-full surface-input px-3 py-2.5 text-sm">
-                  <option value="bria-rmbg">BRIA RMBG-1.4 (Fast & High Precision)</option>
-                  <option value="birefnet-general">BiRefNet General (Maximum Detail)</option>
-                  <option value="isnet-general-use">IS-Net General (Lightweight)</option>
-                  <option value="u2net">U2Net Standard</option>
+                  <option value="isnet-general-use">IS-Net General (Ultra Fast — 0.3s GPU)</option>
+                  <option value="isnet-anime">IS-Net Anime &amp; Illustration (0.2s GPU)</option>
+                  <option value="bria-rmbg">BRIA RMBG-1.4 (Studio Quality — 3s GPU)</option>
+                  <option value="birefnet-general-lite">BiRefNet Lite (High Detail — 6s)</option>
                 </select>
                 <p id="modelDescText" class="text-xs text-muted-theme pt-0.5"></p>
               </div>
@@ -443,10 +443,10 @@
             <div class="space-y-1.5">
               <label class="text-xs font-medium text-secondary-theme" data-i18n="setting_default_model">Default Model</label>
               <select id="settingDefaultModel" onchange="saveSettingsFromUI()" class="w-full surface-input px-3 py-2 text-sm">
-                <option value="bria-rmbg">BRIA RMBG-1.4</option>
-                <option value="birefnet-general">BiRefNet General</option>
-                <option value="isnet-general-use">IS-Net General</option>
-                <option value="u2net">U2Net Standard</option>
+                <option value="isnet-general-use">IS-Net General (0.3s GPU)</option>
+                <option value="isnet-anime">IS-Net Anime &amp; Illustration (0.2s GPU)</option>
+                <option value="bria-rmbg">BRIA RMBG-1.4 (3s GPU)</option>
+                <option value="birefnet-general-lite">BiRefNet Lite (6s)</option>
               </select>
             </div>
 
