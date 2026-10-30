@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
@@ -409,10 +409,10 @@
               <div id="editorViewport" class="flex-1 w-full relative overflow-hidden flex items-center justify-center rounded-xl border border-theme select-none" style="cursor: none;">
                 <div id="editorStageInner" class="relative inline-block origin-center will-change-transform">
                   <img id="editorGhostImg" src="" alt="" class="absolute inset-0 w-full h-full object-contain pointer-events-none opacity-25">
-                  <canvas id="editorCanvas" class="block max-h-[470px] max-w-full object-contain relative z-10"></canvas>
+                  <canvas id="editorCanvas" class="block relative z-10"></canvas>
                 </div>
                 <!-- Floating Brush Cursor Ring -->
-                <div id="brushCursor" class="hidden pointer-events-none fixed z-50 rounded-full border-2 border-emerald-400 bg-emerald-400/10 flex items-center justify-center" style="transform: translate(-50%, -50%);">
+                <div id="brushCursor" class="hidden pointer-events-none absolute z-50 rounded-full border-2 border-emerald-400 bg-emerald-400/10 flex items-center justify-center" style="transform: translate(-50%, -50%);">
                   <div class="w-1 h-1 rounded-full bg-white/80"></div>
                 </div>
                 <!-- Quick Controls Hint Pill -->

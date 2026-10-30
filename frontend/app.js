@@ -708,6 +708,7 @@ function setViewMode(mode) {
     btnSide.className = "px-3 py-1 rounded-lg text-xs font-medium btn-primary";
   } else if (mode === "edit" && editContainer) {
     editContainer.classList.remove("hidden");
+    fitEditorCanvasToViewport();
     btnEdit.className = "px-3 py-1 rounded-lg text-xs font-medium btn-primary flex items-center gap-1.5";
   } else {
     cutoutContainer.classList.remove("hidden");
@@ -796,8 +797,8 @@ function setupBrushEditor() {
     const screenDiameter = Math.max(6, brushSize * displayScale);
     cursor.style.width = `${screenDiameter}px`;
     cursor.style.height = `${screenDiameter}px`;
-    cursor.style.left = `${clientX}px`;
-    cursor.style.top = `${clientY}px`;
+    cursor.style.left = `${clientX - vRect.left}px`;
+    cursor.style.top = `${clientY - vRect.top}px`;
   };
 
   const startInteraction = e => {
@@ -1027,6 +1028,7 @@ async function initBrushEditorForCurrentResult(origDataUrl, cutoutDataUrl) {
     editorRedoStack = [];
     editorHasUnsavedChanges = false;
     resetOutlineControls();
+    fitEditorCanvasToViewport();
     resetEditorZoom();
   } catch (err) {
     console.error("Failed to initialize brush editor:", err);
@@ -1165,12 +1167,12 @@ function setBrushMode(mode) {
 
   if (mode === "restore") {
     if (cursor) {
-      cursor.className = "hidden pointer-events-none fixed z-50 rounded-full border-2 border-emerald-400 bg-emerald-400/10 flex items-center justify-center";
+      cursor.className = "hidden pointer-events-none absolute z-50 rounded-full border-2 border-emerald-400 bg-emerald-400/10 flex items-center justify-center";
     }
     if (viewport) viewport.style.cursor = "none";
   } else if (mode === "erase") {
     if (cursor) {
-      cursor.className = "hidden pointer-events-none fixed z-50 rounded-full border-2 border-rose-400 bg-rose-400/10 flex items-center justify-center";
+      cursor.className = "hidden pointer-events-none absolute z-50 rounded-full border-2 border-rose-400 bg-rose-400/10 flex items-center justify-center";
     }
     if (viewport) viewport.style.cursor = "none";
   } else {
@@ -1559,3 +1561,21 @@ function showToast(message, iconName = "check-circle") {
     toast.classList.add("translate-y-20", "opacity-0");
   }, 3200);
 }
+
+// Size the canvas with exact pixel dimensions (keeps aspect ratio so brush coords map 1:1)
+function fitEditorCanvasToViewport() {
+  const canvas = document.getElementById("editorCanvas");
+  const viewport = document.getElementById("editorViewport");
+  if (!canvas || !viewport || !canvas.width) return;
+  let vw = viewport.clientWidth;
+  let vh = viewport.clientHeight;
+  if (!vw || !vh) { vw = 900; vh = 480; }
+  const scale = Math.min((vw - 24) / canvas.width, (vh - 24) / canvas.height);
+  canvas.style.width = `${Math.max(50, Math.floor(canvas.width * scale))}px`;
+  canvas.style.height = `${Math.max(50, Math.floor(canvas.height * scale))}px`;
+}
+
+window.addEventListener("resize", () => {
+  const ec = document.getElementById("editViewContainer");
+  if (ec && !ec.classList.contains("hidden")) fitEditorCanvasToViewport();
+});
