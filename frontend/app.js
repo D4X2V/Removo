@@ -56,13 +56,20 @@ const I18N = {
     view_edit: "Edit / Restore",
     brush_restore: "Restore",
     brush_erase: "Erase",
+    brush_pan: "Move",
     brush_size_label: "Size",
     brush_soft_label: "Soft Edge",
     brush_guide_label: "Original Guide",
     brush_undo: "Undo",
     brush_reset: "Reset",
     brush_save: "Save Changes",
+    editor_shortcuts_hint: "Wheel: Zoom to cursor • Right-Click or Space: Move • Alt + Wheel: Brush Size • Ctrl+Z: Undo",
     toast_edits_saved: "Edited image saved",
+    outline_title: "Subject Outline",
+    outline_width_label: "Thickness",
+    outline_color_label: "Color:",
+    outline_clear_btn: "Remove Outline",
+    outline_save_btn: "Save with Outline",
     bg_preview_label: "Backdrop:",
     copy_png_btn: "Copy PNG to Clipboard",
     open_saved_folder_btn: "Open Output Folder",
@@ -133,13 +140,20 @@ const I18N = {
     view_edit: "Editar / Recuperar",
     brush_restore: "Recuperar",
     brush_erase: "Borrar",
+    brush_pan: "Mover",
     brush_size_label: "Tamaño",
     brush_soft_label: "Borde Suave",
     brush_guide_label: "Guía Original",
     brush_undo: "Deshacer",
     brush_reset: "Restablecer",
     brush_save: "Guardar Cambios",
+    editor_shortcuts_hint: "Rueda: Zoom al cursor • Clic Derecho o Espacio: Mover • Alt + Rueda: Tamaño Pincel • Ctrl+Z: Deshacer",
     toast_edits_saved: "Imagen editada guardada",
+    outline_title: "Contorno (Outline)",
+    outline_width_label: "Grosor",
+    outline_color_label: "Color:",
+    outline_clear_btn: "Quitar Contorno",
+    outline_save_btn: "Guardar con Contorno",
     bg_preview_label: "Fondo:",
     copy_png_btn: "Copiar PNG al Portapapeles",
     open_saved_folder_btn: "Abrir Carpeta de Salida",
@@ -355,7 +369,7 @@ async function saveSettingsFromUI() {
   await saveSettingsPatch(patch);
 }
 
-// Upscayl-style native OS folder picker
+// Native OS folder picker
 async function selectOutputFolder() {
   try {
     const res = await fetch("/api/select-folder", { method: "POST" });
@@ -528,7 +542,7 @@ function backToStaging() {
 async function executeRender() {
   if (!currentFile) return;
 
-  // Upscayl check: if auto_save is enabled and no output_folder is set, ask user to pick one now
+  // If auto_save is enabled and no output_folder is set, prompt user to pick one now
   if (appSettings.auto_save && !(appSettings.output_folder || "").trim()) {
     showToast(t("toast_select_folder_prompt"), "folder");
     const chosen = await selectOutputFolder();
@@ -702,14 +716,22 @@ function setViewMode(mode) {
 }
 
 // ==========================================
-// INTERACTIVE BRUSH EDITOR (RESTORE & ERASE)
+// INTERACTIVE BRUSH EDITOR (RESTORE, ERASE & PAN/ZOOM)
 // ==========================================
-let brushMode = "restore"; // 'restore' | 'erase'
+let brushMode = "restore"; // 'restore' | 'erase' | 'pan'
 let brushSize = 32;
 let editorZoom = 1.0;
+let editorPanX = 0;
+let editorPanY = 0;
 let isPainting = false;
+let isPanningEditor = false;
+let isSpacePressed = false;
+let panStartScreen = { x: 0, y: 0 };
+let panStartOffset = { x: 0, y: 0 };
+let lastMouseClient = { x: 0, y: 0 };
 let lastPaintPt = null;
 let editorUndoStack = [];
+let editorRedoStack = [];
 let editorHasUnsavedChanges = false;
 
 let origOffscreenCanvas = null;
@@ -726,6 +748,9 @@ function setupBrushEditor() {
   initialCutoutCanvas = document.createElement("canvas");
   brushStampCanvas = document.createElement("canvas");
 
+  // Prevent browser context menu inside editor so Right-Click Drag pans smoothly
+  viewport.addEventListener("contextmenu", e => e.preventDefault());
+
   const getCanvasCoords = e => {
     const rect = canvas.getBoundingClientRect();
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -739,27 +764,35 @@ function setupBrushEditor() {
     };
   };
 
-  const updateCursorRing = e => {
+  const updateCursorRing = (clientX, clientY) => {
     if (!cursor) return;
     const editContainer = document.getElementById("editViewContainer");
     if (!editContainer || editContainer.classList.contains("hidden")) {
       cursor.classList.add("hidden");
       return;
     }
-    const rect = canvas.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+    if (isPanningEditor || isSpacePressed || brushMode === "pan") {
+      cursor.classList.add("hidden");
+      viewport.style.cursor = isPanningEditor ? "grabbing" : "grab";
+      return;
+    }
+
+    viewport.style.cursor = "none";
+    const vRect = viewport.getBoundingClientRect();
     if (
-      clientX < rect.left ||
-      clientX > rect.right ||
-      clientY < rect.top ||
-      clientY > rect.bottom
+      clientX < vRect.left ||
+      clientX > vRect.right ||
+      clientY < vRect.top ||
+      clientY > vRect.bottom
     ) {
       cursor.classList.add("hidden");
       return;
     }
+
+    const cRect = canvas.getBoundingClientRect();
     cursor.classList.remove("hidden");
-    const displayScale = rect.width / (canvas.width || 1);
+    const displayScale = cRect.width / (canvas.width || 1);
     const screenDiameter = Math.max(6, brushSize * displayScale);
     cursor.style.width = `${screenDiameter}px`;
     cursor.style.height = `${screenDiameter}px`;
@@ -767,20 +800,57 @@ function setupBrushEditor() {
     cursor.style.top = `${clientY}px`;
   };
 
-  const startStroke = e => {
+  const startInteraction = e => {
+    const editContainer = document.getElementById("editViewContainer");
+    if (!editContainer || editContainer.classList.contains("hidden")) return;
+
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+    // Right-click (2), Middle-click (1), Space + Left-click, or Move tool -> Pan canvas
+    if (
+      e.button === 1 ||
+      e.button === 2 ||
+      isSpacePressed ||
+      brushMode === "pan"
+    ) {
+      e.preventDefault();
+      isPanningEditor = true;
+      panStartScreen = { x: clientX, y: clientY };
+      panStartOffset = { x: editorPanX, y: editorPanY };
+      updateCursorRing(clientX, clientY);
+      return;
+    }
+
     if (e.button !== undefined && e.button !== 0) return;
+
+    // Left-click with Restore or Erase -> Paint stroke
     e.preventDefault();
     pushEditorUndoState();
+    editorRedoStack = [];
     isPainting = true;
     editorHasUnsavedChanges = true;
     const pt = getCanvasCoords(e);
     lastPaintPt = pt;
     paintBrushSegment(pt, pt);
-    updateCursorRing(e);
+    updateCursorRing(clientX, clientY);
   };
 
-  const moveStroke = e => {
-    updateCursorRing(e);
+  const moveInteraction = e => {
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    lastMouseClient = { x: clientX, y: clientY };
+
+    if (isPanningEditor) {
+      e.preventDefault();
+      editorPanX = panStartOffset.x + (clientX - panStartScreen.x);
+      editorPanY = panStartOffset.y + (clientY - panStartScreen.y);
+      applyEditorTransform();
+      updateCursorRing(clientX, clientY);
+      return;
+    }
+
+    updateCursorRing(clientX, clientY);
     if (!isPainting) return;
     e.preventDefault();
     const pt = getCanvasCoords(e);
@@ -788,38 +858,120 @@ function setupBrushEditor() {
     lastPaintPt = pt;
   };
 
-  const endStroke = () => {
-    if (!isPainting) return;
-    isPainting = false;
-    lastPaintPt = null;
+  const endInteraction = () => {
+    if (isPanningEditor) {
+      isPanningEditor = false;
+      updateCursorRing(lastMouseClient.x, lastMouseClient.y);
+    }
+    if (isPainting) {
+      isPainting = false;
+      lastPaintPt = null;
+    }
   };
 
-  canvas.addEventListener("mousedown", startStroke);
-  window.addEventListener("mousemove", moveStroke);
-  window.addEventListener("mouseup", endStroke);
+  viewport.addEventListener("mousedown", startInteraction);
+  window.addEventListener("mousemove", moveInteraction);
+  window.addEventListener("mouseup", endInteraction);
   viewport.addEventListener("mouseleave", () => {
     if (cursor) cursor.classList.add("hidden");
   });
 
-  canvas.addEventListener("touchstart", startStroke, { passive: false });
-  canvas.addEventListener("touchmove", moveStroke, { passive: false });
-  window.addEventListener("touchend", endStroke);
+  canvas.addEventListener("touchstart", startInteraction, { passive: false });
+  canvas.addEventListener("touchmove", moveInteraction, { passive: false });
+  window.addEventListener("touchend", endInteraction);
 
-  // Mouse wheel zoom inside editor viewport when Ctrl is held
+  // Direct Mouse Wheel Zoom anchored at cursor (or Alt+Wheel for Brush Size)
   viewport.addEventListener("wheel", e => {
-    if (e.ctrlKey) {
-      e.preventDefault();
-      changeEditorZoom(e.deltaY < 0 ? 0.25 : -0.25);
+    e.preventDefault();
+    lastMouseClient = { x: e.clientX, y: e.clientY };
+
+    // Alt + Wheel or Shift + Wheel -> Adjust Brush Size on the fly
+    if (e.altKey || e.shiftKey) {
+      const step = Math.max(2, Math.round(brushSize * 0.12));
+      const nextSize = Math.max(2, Math.min(140, brushSize + (e.deltaY < 0 ? step : -step)));
+      updateBrushSize(nextSize);
+      const slider = document.getElementById("brushSizeSlider");
+      if (slider) slider.value = nextSize;
+      updateCursorRing(e.clientX, e.clientY);
+      return;
     }
+
+    // Normal Mouse Wheel -> Smooth Zoom toward mouse cursor position
+    const zoomFactor = e.deltaY < 0 ? 1.18 : 1 / 1.18;
+    const oldZoom = editorZoom;
+    const newZoom = Math.max(0.5, Math.min(6.0, Math.round(oldZoom * zoomFactor * 100) / 100));
+    if (newZoom === oldZoom) return;
+
+    const vRect = viewport.getBoundingClientRect();
+    const cx = vRect.left + vRect.width / 2;
+    const cy = vRect.top + vRect.height / 2;
+    const dx = e.clientX - cx;
+    const dy = e.clientY - cy;
+    const ratio = newZoom / oldZoom;
+
+    editorPanX = dx - (dx - editorPanX) * ratio;
+    editorPanY = dy - (dy - editorPanY) * ratio;
+    editorZoom = newZoom;
+
+    if (editorZoom === 1.0 && Math.hypot(editorPanX, editorPanY) < 25) {
+      editorPanX = 0;
+      editorPanY = 0;
+    }
+
+    applyEditorTransform();
+    updateCursorRing(e.clientX, e.clientY);
   }, { passive: false });
 
-  // Ctrl+Z undo shortcut
+  // Keyboard shortcuts inside editor (Space to pan, Ctrl+Z undo, Ctrl+Y redo, R/E/H tools, [/] size)
   window.addEventListener("keydown", e => {
     const editContainer = document.getElementById("editViewContainer");
     if (!editContainer || editContainer.classList.contains("hidden")) return;
+    if (e.target && ["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName)) return;
+
+    if (e.code === "Space" && !isSpacePressed) {
+      e.preventDefault();
+      isSpacePressed = true;
+      updateCursorRing(lastMouseClient.x, lastMouseClient.y);
+      return;
+    }
+
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
       e.preventDefault();
-      undoBrushStroke();
+      if (e.shiftKey) {
+        redoBrushStroke();
+      } else {
+        undoBrushStroke();
+      }
+      return;
+    }
+
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+      e.preventDefault();
+      redoBrushStroke();
+      return;
+    }
+
+    if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+      const k = e.key.toLowerCase();
+      if (k === "r") setBrushMode("restore");
+      else if (k === "e") setBrushMode("erase");
+      else if (k === "h") setBrushMode("pan");
+      else if (k === "0") resetEditorZoom();
+      else if (e.key === "[" || e.key === "]") {
+        const delta = e.key === "]" ? 6 : -6;
+        const nextSize = Math.max(2, Math.min(140, brushSize + delta));
+        updateBrushSize(nextSize);
+        const slider = document.getElementById("brushSizeSlider");
+        if (slider) slider.value = nextSize;
+        updateCursorRing(lastMouseClient.x, lastMouseClient.y);
+      }
+    }
+  });
+
+  window.addEventListener("keyup", e => {
+    if (e.code === "Space") {
+      isSpacePressed = false;
+      updateCursorRing(lastMouseClient.x, lastMouseClient.y);
     }
   });
 }
@@ -872,7 +1024,9 @@ async function initBrushEditorForCurrentResult(origDataUrl, cutoutDataUrl) {
     if (slider) slider.value = defaultBrush;
 
     editorUndoStack = [];
+    editorRedoStack = [];
     editorHasUnsavedChanges = false;
+    resetOutlineControls();
     resetEditorZoom();
   } catch (err) {
     console.error("Failed to initialize brush editor:", err);
@@ -883,7 +1037,7 @@ function pushEditorUndoState() {
   const canvas = document.getElementById("editorCanvas");
   if (!canvas || !canvas.width) return;
   const ctx = canvas.getContext("2d");
-  if (editorUndoStack.length >= 15) {
+  if (editorUndoStack.length >= 20) {
     editorUndoStack.shift();
   }
   editorUndoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
@@ -893,8 +1047,19 @@ function undoBrushStroke() {
   const canvas = document.getElementById("editorCanvas");
   if (!canvas || editorUndoStack.length === 0) return;
   const ctx = canvas.getContext("2d");
+  editorRedoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
   const prev = editorUndoStack.pop();
   ctx.putImageData(prev, 0, 0);
+  editorHasUnsavedChanges = true;
+}
+
+function redoBrushStroke() {
+  const canvas = document.getElementById("editorCanvas");
+  if (!canvas || editorRedoStack.length === 0) return;
+  const ctx = canvas.getContext("2d");
+  editorUndoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+  const next = editorRedoStack.pop();
+  ctx.putImageData(next, 0, 0);
   editorHasUnsavedChanges = true;
 }
 
@@ -902,6 +1067,7 @@ function resetBrushEdits() {
   const canvas = document.getElementById("editorCanvas");
   if (!canvas || !initialCutoutCanvas || !initialCutoutCanvas.width) return;
   pushEditorUndoState();
+  editorRedoStack = [];
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(initialCutoutCanvas, 0, 0);
@@ -912,11 +1078,11 @@ function paintBrushSegment(p0, p1) {
   const canvas = document.getElementById("editorCanvas");
   if (!canvas || !canvas.width) return;
   const ctx = canvas.getContext("2d");
-  const radius = Math.max(2, brushSize / 2);
+  const radius = Math.max(1.5, brushSize / 2);
   const isSoft = document.getElementById("brushSoftToggle")?.checked ?? true;
 
   const dist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-  const step = Math.max(1, radius * 0.25);
+  const step = Math.max(1, radius * 0.22);
   const steps = Math.max(1, Math.ceil(dist / step));
 
   if (brushMode === "erase") {
@@ -939,7 +1105,7 @@ function paintBrushSegment(p0, p1) {
       ctx.fill();
     }
     ctx.restore();
-  } else {
+  } else if (brushMode === "restore") {
     // Restore mode: stamp original image pixels onto canvas inside bounding box of stroke
     const minX = Math.max(0, Math.floor(Math.min(p0.x, p1.x) - radius - 2));
     const minY = Math.max(0, Math.floor(Math.min(p0.y, p1.y) - radius - 2));
@@ -986,20 +1152,30 @@ function setBrushMode(mode) {
   brushMode = mode;
   const restoreBtn = document.getElementById("brushRestoreBtn");
   const eraseBtn = document.getElementById("brushEraseBtn");
+  const panBtn = document.getElementById("brushPanBtn");
   const cursor = document.getElementById("brushCursor");
+  const viewport = document.getElementById("editorViewport");
+
+  const inactiveCls = "px-3 py-1.5 rounded-lg text-xs font-semibold btn-secondary flex items-center gap-1.5";
+  const activeCls = "px-3 py-1.5 rounded-lg text-xs font-semibold btn-primary flex items-center gap-1.5";
+
+  if (restoreBtn) restoreBtn.className = mode === "restore" ? activeCls : inactiveCls;
+  if (eraseBtn) eraseBtn.className = mode === "erase" ? activeCls : inactiveCls;
+  if (panBtn) panBtn.className = mode === "pan" ? activeCls : inactiveCls;
 
   if (mode === "restore") {
-    restoreBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold btn-primary flex items-center gap-1.5";
-    eraseBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold btn-secondary flex items-center gap-1.5";
     if (cursor) {
-      cursor.className = "hidden pointer-events-none fixed z-50 rounded-full border-2 border-emerald-400 bg-emerald-400/10";
+      cursor.className = "hidden pointer-events-none fixed z-50 rounded-full border-2 border-emerald-400 bg-emerald-400/10 flex items-center justify-center";
     }
+    if (viewport) viewport.style.cursor = "none";
+  } else if (mode === "erase") {
+    if (cursor) {
+      cursor.className = "hidden pointer-events-none fixed z-50 rounded-full border-2 border-rose-400 bg-rose-400/10 flex items-center justify-center";
+    }
+    if (viewport) viewport.style.cursor = "none";
   } else {
-    eraseBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold btn-primary flex items-center gap-1.5";
-    restoreBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold btn-secondary flex items-center gap-1.5";
-    if (cursor) {
-      cursor.className = "hidden pointer-events-none fixed z-50 rounded-full border-2 border-rose-400 bg-rose-400/10";
-    }
+    if (cursor) cursor.classList.add("hidden");
+    if (viewport) viewport.style.cursor = "grab";
   }
 }
 
@@ -1017,20 +1193,28 @@ function toggleEditorGhost(show) {
 }
 
 function changeEditorZoom(delta) {
-  editorZoom = Math.max(0.5, Math.min(3.5, Math.round((editorZoom + delta) * 100) / 100));
-  applyEditorZoom();
+  const oldZoom = editorZoom;
+  const newZoom = Math.max(0.5, Math.min(6.0, Math.round((oldZoom + delta) * 100) / 100));
+  if (newZoom === oldZoom) return;
+  const ratio = newZoom / oldZoom;
+  editorPanX *= ratio;
+  editorPanY *= ratio;
+  editorZoom = newZoom;
+  applyEditorTransform();
 }
 
 function resetEditorZoom() {
   editorZoom = 1.0;
-  applyEditorZoom();
+  editorPanX = 0;
+  editorPanY = 0;
+  applyEditorTransform();
 }
 
-function applyEditorZoom() {
+function applyEditorTransform() {
   const inner = document.getElementById("editorStageInner");
   const badge = document.getElementById("editorZoomBadge");
   if (inner) {
-    inner.style.transform = `scale(${editorZoom})`;
+    inner.style.transform = `translate(${editorPanX}px, ${editorPanY}px) scale(${editorZoom})`;
   }
   if (badge) {
     badge.innerText = `${Math.round(editorZoom * 100)}%`;
@@ -1038,10 +1222,9 @@ function applyEditorZoom() {
 }
 
 function syncEditorCanvasToPreviews() {
-  if (!editorHasUnsavedChanges) return null;
   const canvas = document.getElementById("editorCanvas");
   if (!canvas || !canvas.width || !currentProcessedData) return null;
-  const updatedDataUrl = canvas.toDataURL("image/png");
+  const updatedDataUrl = composeCutoutWithOutline();
   currentProcessedData.image = updatedDataUrl;
   document.getElementById("resultImageAfter").src = updatedDataUrl;
   document.getElementById("sideResultImg").src = updatedDataUrl;
@@ -1054,15 +1237,137 @@ async function applyAndSaveBrushEdits() {
   if (!canvas || !canvas.width || !currentProcessedData) return;
 
   editorHasUnsavedChanges = true;
-  const updatedDataUrl = syncEditorCanvasToPreviews();
+  syncEditorCanvasToPreviews();
   editorHasUnsavedChanges = false;
+  await saveCurrentResultToDisk();
+}
+
+// ==========================================
+// POST-GENERATION SUBJECT OUTLINE (STROKE)
+// ==========================================
+let outlineWidth = 0;
+let outlineColor = "#FFFFFF";
+let outlineSilhouetteCanvas = null;
+let outlineOutputCanvas = null;
+
+function resetOutlineControls() {
+  outlineWidth = 0;
+  const slider = document.getElementById("outlineWidthSlider");
+  const valLabel = document.getElementById("outlineWidthValue");
+  const clearBtn = document.getElementById("outlineClearBtn");
+  const saveBtn = document.getElementById("outlineSaveBtn");
+  if (slider) slider.value = 0;
+  if (valLabel) valLabel.innerText = "0px";
+  if (clearBtn) clearBtn.classList.add("hidden");
+  if (saveBtn) saveBtn.classList.add("hidden");
+}
+
+function setOutlineColor(hexColor) {
+  outlineColor = hexColor;
+  const picker = document.getElementById("outlineColorPicker");
+  const swatch = document.getElementById("outlineActiveSwatch");
+  if (picker) picker.value = hexColor;
+  if (swatch) swatch.style.backgroundColor = hexColor;
+
+  // If user clicks a color while thickness is 0, automatically set thickness to 8px so outline is immediately visible
+  const slider = document.getElementById("outlineWidthSlider");
+  if (slider && parseInt(slider.value, 10) === 0) {
+    slider.value = 8;
+  }
+  onOutlineControlsChange();
+}
+
+function clearSubjectOutline() {
+  resetOutlineControls();
+  syncEditorCanvasToPreviews();
+}
+
+function onOutlineControlsChange() {
+  const slider = document.getElementById("outlineWidthSlider");
+  const valLabel = document.getElementById("outlineWidthValue");
+  const clearBtn = document.getElementById("outlineClearBtn");
+  const saveBtn = document.getElementById("outlineSaveBtn");
+
+  outlineWidth = slider ? parseInt(slider.value, 10) || 0 : 0;
+  if (valLabel) valLabel.innerText = `${outlineWidth}px`;
+
+  if (outlineWidth > 0) {
+    if (clearBtn) clearBtn.classList.remove("hidden");
+    if (saveBtn) saveBtn.classList.remove("hidden");
+  } else {
+    if (clearBtn) clearBtn.classList.add("hidden");
+    if (saveBtn) saveBtn.classList.add("hidden");
+  }
+
+  syncEditorCanvasToPreviews();
+}
+
+function composeCutoutWithOutline() {
+  const canvas = document.getElementById("editorCanvas");
+  if (!canvas || !canvas.width) return currentProcessedData ? currentProcessedData.image : "";
+
+  if (outlineWidth <= 0) {
+    return canvas.toDataURL("image/png");
+  }
+
+  const w = canvas.width;
+  const h = canvas.height;
+
+  if (!outlineSilhouetteCanvas) outlineSilhouetteCanvas = document.createElement("canvas");
+  if (!outlineOutputCanvas) outlineOutputCanvas = document.createElement("canvas");
+
+  outlineSilhouetteCanvas.width = w;
+  outlineSilhouetteCanvas.height = h;
+  outlineOutputCanvas.width = w;
+  outlineOutputCanvas.height = h;
+
+  // 1. Build solid colored silhouette from cutout alpha
+  const sCtx = outlineSilhouetteCanvas.getContext("2d");
+  sCtx.clearRect(0, 0, w, h);
+  sCtx.globalCompositeOperation = "source-over";
+  sCtx.drawImage(canvas, 0, 0);
+  sCtx.globalCompositeOperation = "source-in";
+  sCtx.fillStyle = outlineColor;
+  sCtx.fillRect(0, 0, w, h);
+
+  // 2. Multi-ring circular dilation for smooth sticker/contour stroke
+  const oCtx = outlineOutputCanvas.getContext("2d");
+  oCtx.clearRect(0, 0, w, h);
+  oCtx.globalCompositeOperation = "source-over";
+
+  // Scale pixel radius proportionally to image dimensions
+  const scaleFactor = Math.max(1.0, Math.min(w, h) / 900);
+  const radiusPx = Math.max(1, outlineWidth * scaleFactor);
+
+  const rings = [0.35, 0.7, 1.0];
+  for (const rFrac of rings) {
+    const r = radiusPx * rFrac;
+    const steps = Math.max(16, Math.min(40, Math.ceil(2 * Math.PI * r * 0.75)));
+    for (let i = 0; i < steps; i++) {
+      const angle = (i / steps) * Math.PI * 2;
+      const dx = Math.cos(angle) * r;
+      const dy = Math.sin(angle) * r;
+      oCtx.drawImage(outlineSilhouetteCanvas, dx, dy);
+    }
+  }
+
+  // 3. Draw sharp original/edited subject cutout on top
+  oCtx.drawImage(canvas, 0, 0);
+
+  return outlineOutputCanvas.toDataURL("image/png");
+}
+
+async function saveCurrentResultToDisk() {
+  if (!currentProcessedData) return;
+  const finalDataUrl = syncEditorCanvasToPreviews();
+  if (!finalDataUrl) return;
 
   try {
     const res = await fetch("/api/save-edited", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        image: updatedDataUrl,
+        image: finalDataUrl,
         saved_path: currentProcessedData.saved_path || "",
         filename: currentFile ? currentFile.name : "image.png"
       })

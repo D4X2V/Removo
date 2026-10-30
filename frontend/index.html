@@ -63,7 +63,7 @@
   <!-- Main Content -->
   <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">
 
-    <!-- Upscayl-style Output Folder Bar -->
+    <!-- Output Folder Bar -->
     <div class="surface-card p-3.5 mb-6 flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center space-x-3 min-w-0 flex-1">
         <div class="w-9 h-9 rounded-lg bg-purple-600/15 border border-purple-500/30 flex items-center justify-center text-purple-400 shrink-0">
@@ -266,6 +266,48 @@
             </div>
           </div>
 
+          <!-- Optional Post-Generation Outline / Stroke Controls -->
+          <div class="surface-input px-3.5 py-2.5 rounded-xl flex flex-wrap items-center justify-between gap-4">
+            <div class="flex flex-wrap items-center gap-3">
+              <div class="flex items-center gap-2">
+                <i data-lucide="sparkles" class="w-4 h-4 text-purple-400"></i>
+                <span class="text-xs font-semibold" data-i18n="outline_title">Subject Outline</span>
+              </div>
+
+              <!-- Thickness Slider -->
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-secondary-theme" data-i18n="outline_width_label">Thickness</span>
+                <input type="range" id="outlineWidthSlider" min="0" max="36" value="0" oninput="onOutlineControlsChange()" class="w-28 accent-purple-600 cursor-pointer">
+                <span id="outlineWidthValue" class="text-xs font-mono text-purple-400 w-10">0px</span>
+              </div>
+
+              <!-- Outline Color Swatches & Picker -->
+              <div class="flex items-center gap-1.5 pl-1">
+                <span class="text-xs text-secondary-theme mr-1" data-i18n="outline_color_label">Color:</span>
+                <button onclick="setOutlineColor('#FFFFFF')" class="w-5 h-5 rounded-full border border-gray-400 bg-white hover:scale-110 transition-transform" title="White"></button>
+                <button onclick="setOutlineColor('#111111')" class="w-5 h-5 rounded-full border border-gray-600 bg-neutral-900 hover:scale-110 transition-transform" title="Black"></button>
+                <button onclick="setOutlineColor('#8B5CF6')" class="w-5 h-5 rounded-full border border-purple-300 bg-purple-500 hover:scale-110 transition-transform" title="Purple"></button>
+                <button onclick="setOutlineColor('#06B6D4')" class="w-5 h-5 rounded-full border border-cyan-300 bg-cyan-500 hover:scale-110 transition-transform" title="Cyan"></button>
+                <button onclick="setOutlineColor('#F59E0B')" class="w-5 h-5 rounded-full border border-amber-300 bg-amber-500 hover:scale-110 transition-transform" title="Gold"></button>
+                <button onclick="setOutlineColor('#F43F5E')" class="w-5 h-5 rounded-full border border-rose-300 bg-rose-500 hover:scale-110 transition-transform" title="Rose"></button>
+                <label class="w-6 h-6 rounded-lg border border-purple-400/60 surface-card cursor-pointer flex items-center justify-center ml-0.5" title="Custom Outline Color">
+                  <input type="color" id="outlineColorPicker" value="#FFFFFF" oninput="setOutlineColor(this.value)" class="opacity-0 w-0 h-0">
+                  <span id="outlineActiveSwatch" class="w-3.5 h-3.5 rounded-sm bg-white border border-black/20"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button id="outlineClearBtn" onclick="clearSubjectOutline()" class="btn-secondary px-2.5 py-1 text-xs hidden" data-i18n="outline_clear_btn">
+                Remove Outline
+              </button>
+              <button id="outlineSaveBtn" onclick="saveCurrentResultToDisk()" class="btn-primary px-3 py-1 text-xs font-semibold flex items-center gap-1.5 hidden">
+                <i data-lucide="save" class="w-3.5 h-3.5"></i>
+                <span data-i18n="outline_save_btn">Save with Outline</span>
+              </button>
+            </div>
+          </div>
+
           <!-- Canvas Area -->
           <div id="stageWrapper" class="w-full flex items-center justify-center min-h-[460px] bg-transparency-grid rounded-xl relative overflow-hidden p-2">
             <!-- Split Slider -->
@@ -299,26 +341,30 @@
             </div>
 
             <!-- Interactive Brush Editor (Restore & Erase) -->
-            <div id="editViewContainer" class="hidden flex flex-col w-full h-[580px] gap-2">
+            <div id="editViewContainer" class="hidden flex flex-col w-full h-[600px] gap-2">
               <!-- Editor Top Toolbar -->
               <div class="surface-card px-3 py-2 flex flex-wrap items-center justify-between gap-3 z-20 shrink-0">
-                <!-- Brush Mode: Restore vs Erase -->
+                <!-- Brush Mode: Restore vs Erase vs Pan -->
                 <div class="flex items-center space-x-1.5">
-                  <button id="brushRestoreBtn" onclick="setBrushMode('restore')" class="px-3 py-1.5 rounded-lg text-xs font-semibold btn-primary flex items-center gap-1.5">
+                  <button id="brushRestoreBtn" onclick="setBrushMode('restore')" class="px-3 py-1.5 rounded-lg text-xs font-semibold btn-primary flex items-center gap-1.5" title="Shortcut: R">
                     <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
                     <span data-i18n="brush_restore">Restore</span>
                   </button>
-                  <button id="brushEraseBtn" onclick="setBrushMode('erase')" class="px-3 py-1.5 rounded-lg text-xs font-semibold btn-secondary flex items-center gap-1.5">
+                  <button id="brushEraseBtn" onclick="setBrushMode('erase')" class="px-3 py-1.5 rounded-lg text-xs font-semibold btn-secondary flex items-center gap-1.5" title="Shortcut: E">
                     <i data-lucide="eraser" class="w-3.5 h-3.5 text-rose-400"></i>
                     <span data-i18n="brush_erase">Erase</span>
+                  </button>
+                  <button id="brushPanBtn" onclick="setBrushMode('pan')" class="px-3 py-1.5 rounded-lg text-xs font-semibold btn-secondary flex items-center gap-1.5" title="Pan Canvas (Shortcut: Space or Right-Click)">
+                    <i data-lucide="hand" class="w-3.5 h-3.5 text-purple-400"></i>
+                    <span data-i18n="brush_pan">Move</span>
                   </button>
                 </div>
 
                 <!-- Brush Size & Softness & Ghost Guide -->
                 <div class="flex flex-wrap items-center gap-3">
-                  <div class="flex items-center gap-2">
+                  <div class="flex items-center gap-2" title="Alt + Mouse Wheel to adjust size">
                     <span class="text-xs text-secondary-theme" data-i18n="brush_size_label">Size</span>
-                    <input type="range" id="brushSizeSlider" min="4" max="120" value="32" oninput="updateBrushSize(this.value)" class="w-24 accent-purple-600 cursor-pointer">
+                    <input type="range" id="brushSizeSlider" min="2" max="140" value="32" oninput="updateBrushSize(this.value)" class="w-24 accent-purple-600 cursor-pointer">
                     <span id="brushSizeValue" class="text-xs font-mono text-purple-400 w-10">32px</span>
                   </div>
 
@@ -333,10 +379,10 @@
                   </label>
                 </div>
 
-                <!-- Zoom, Undo, Reset & Save -->
+                <!-- Zoom, Undo, Redo, Reset & Save -->
                 <div class="flex items-center gap-1.5">
                   <button onclick="changeEditorZoom(-0.25)" class="btn-secondary px-2 py-1 text-xs font-mono" title="Zoom Out">−</button>
-                  <button onclick="resetEditorZoom()" id="editorZoomBadge" class="btn-secondary px-2 py-1 text-xs font-mono" title="Reset Zoom">100%</button>
+                  <button onclick="resetEditorZoom()" id="editorZoomBadge" class="btn-secondary px-2 py-1 text-xs font-mono min-w-[52px]" title="Click to Fit / Reset View">100%</button>
                   <button onclick="changeEditorZoom(0.25)" class="btn-secondary px-2 py-1 text-xs font-mono" title="Zoom In">+</button>
 
                   <div class="h-4 w-px bg-purple-500/20 mx-1"></div>
@@ -344,6 +390,9 @@
                   <button id="editorUndoBtn" onclick="undoBrushStroke()" class="btn-secondary px-2.5 py-1.5 text-xs flex items-center gap-1" title="Undo (Ctrl+Z)">
                     <i data-lucide="undo-2" class="w-3.5 h-3.5 text-purple-400"></i>
                     <span data-i18n="brush_undo">Undo</span>
+                  </button>
+                  <button id="editorRedoBtn" onclick="redoBrushStroke()" class="btn-secondary px-2 py-1.5 text-xs flex items-center" title="Redo (Ctrl+Y)">
+                    <i data-lucide="redo-2" class="w-3.5 h-3.5 text-purple-400"></i>
                   </button>
                   <button onclick="resetBrushEdits()" class="btn-secondary px-2.5 py-1.5 text-xs flex items-center gap-1" title="Reset to AI Output">
                     <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
@@ -356,14 +405,20 @@
                 </div>
               </div>
 
-              <!-- Interactive Canvas Viewport -->
-              <div id="editorViewport" class="flex-1 w-full relative overflow-auto flex items-center justify-center rounded-xl border border-theme select-none" style="cursor: crosshair;">
-                <div id="editorStageInner" class="relative inline-block origin-center transition-transform duration-75">
+              <!-- Interactive Canvas Viewport (Wheel Zoom + Drag Pan) -->
+              <div id="editorViewport" class="flex-1 w-full relative overflow-hidden flex items-center justify-center rounded-xl border border-theme select-none" style="cursor: none;">
+                <div id="editorStageInner" class="relative inline-block origin-center will-change-transform">
                   <img id="editorGhostImg" src="" alt="" class="absolute inset-0 w-full h-full object-contain pointer-events-none opacity-25">
-                  <canvas id="editorCanvas" class="block max-h-[480px] max-w-full object-contain relative z-10"></canvas>
+                  <canvas id="editorCanvas" class="block max-h-[470px] max-w-full object-contain relative z-10"></canvas>
                 </div>
                 <!-- Floating Brush Cursor Ring -->
-                <div id="brushCursor" class="hidden pointer-events-none fixed z-50 rounded-full border-2 border-emerald-400 bg-emerald-400/10" style="transform: translate(-50%, -50%);"></div>
+                <div id="brushCursor" class="hidden pointer-events-none fixed z-50 rounded-full border-2 border-emerald-400 bg-emerald-400/10 flex items-center justify-center" style="transform: translate(-50%, -50%);">
+                  <div class="w-1 h-1 rounded-full bg-white/80"></div>
+                </div>
+                <!-- Quick Controls Hint Pill -->
+                <div class="absolute bottom-2.5 left-1/2 -translate-x-1/2 surface-card px-3 py-1 rounded-full text-[11px] text-secondary-theme pointer-events-none opacity-85 z-20 whitespace-nowrap" data-i18n="editor_shortcuts_hint">
+                  Wheel: Zoom to cursor • Right-Click or Space: Move • Alt + Wheel: Brush Size • Ctrl+Z: Undo
+                </div>
               </div>
             </div>
           </div>

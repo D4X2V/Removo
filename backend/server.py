@@ -147,7 +147,7 @@ async def update_settings(payload: dict = Body(...)):
 
 @app.post("/api/select-folder")
 async def select_output_folder():
-    """Open native OS directory dialog (Upscayl-style) to pick output folder."""
+    """Open native OS directory dialog to select the output folder."""
     cfg = load_config()
     initial_dir = cfg.get("output_folder") or str(Path.home() / "Pictures")
     if not Path(initial_dir).exists():
@@ -251,7 +251,7 @@ async def process_image(
     output_folder = cfg.get("output_folder", "").strip()
     auto_save = cfg.get("auto_save", True)
 
-    # Enforce Upscayl behavior: if auto_save is enabled and no output_folder is set, tell frontend
+    # If auto_save is enabled and no output_folder is set, notify frontend to prompt folder selection
     if auto_save and not output_folder:
         raise HTTPException(status_code=428, detail="OUTPUT_FOLDER_REQUIRED")
 

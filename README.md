@@ -3,40 +3,41 @@
 <div align="center">
   <img src="assets/logo.svg" alt="Removo Logo" width="120" height="120">
   <br>
-  <p><strong>Local background removal utility powered by ONNX Runtime, BRIA RMBG-1.4, and BiRefNet.</strong></p>
+  <p><strong>Local GPU-accelerated background removal and cutout refinement desktop utility.</strong></p>
 
   [![License: MIT](https://img.shields.io/badge/License-MIT-7C3AED.svg)](LICENSE)
   [![Python](https://img.shields.io/badge/Python-3.10%2B-8B5CF6.svg)](https://www.python.org/)
   [![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688.svg)](https://fastapi.tiangolo.com/)
-  [![ONNX Runtime](https://img.shields.io/badge/Inference-ONNX%20Runtime-A855F7.svg)](https://onnxruntime.ai/)
+  [![ONNX Runtime](https://img.shields.io/badge/Inference-DirectML%20%2F%20ONNX-A855F7.svg)](https://onnxruntime.ai/)
 </div>
 
 ---
 
 ## Overview
 
-**Removo** is a local desktop application for removing image backgrounds offline. It runs neural segmentation models directly on your hardware using ONNX Runtime, ensuring zero cloud uploads and full control over the rendering pipeline.
+**Removo** is a standalone desktop application for removing image backgrounds and refining cutouts locally. It executes neural segmentation models directly on your GPU or CPU via ONNX Runtime, keeping all image processing offline with zero cloud dependencies.
 
 ### Key Features
 
-- **Multiple Segmentation Models:**
-  - `bria-rmbg` (BRIA RMBG-1.4) — High-speed inference with sharp subject and object boundaries.
-  - `birefnet-general` (BiRefNet) — High-resolution bilateral network for fine hair, fur, and complex edges.
-  - `isnet-general-use` (IS-Net) — Lightweight model for low-memory environments.
-  - `u2net` — Standard salience segmentation model.
-- **Manual Execution Workflow:** Uploading or pasting an image (`Ctrl + V`) stages it for inspection without triggering automatic inference. Rendering starts only when clicking **Remove Background**.
-- **Auto-Save & Native Folder Picker:** Automatically writes processed outputs to your chosen directory. If no output directory is configured when rendering starts, Removo prompts you with a native OS folder selector (similar to Upscayl).
-- **Performance Optimizations:**
-  - Multi-threaded ONNX Runtime graph optimization (`ORT_ENABLE_ALL`) and memory arena caching.
-  - Background model pre-warming on startup to eliminate cold-start latency.
-  - Fast lossless PNG encoding (`compress_level=1`).
-- **Interactive Inspection & Export:**
-  - Split comparison slider, side-by-side view, and backdrop color switcher.
-  - One-click PNG clipboard copy with alpha channel preserved.
-  - Bulk batch processing with automatic folder saving and `.zip` export.
-- **Customizable Interface:**
-  - Dark and Light purple themes.
-  - Built-in English (default) and Spanish localization.
+- **GPU-Accelerated Segmentation Models:**
+  - `isnet-general-use` (IS-Net General) — Ultra-fast general-purpose segmentation for photos, people, and products (~0.3s on GPU).
+  - `isnet-anime` (IS-Net Anime & Illustration) — High-precision segmentation for 2D art, characters, and fine hair strands (~0.2s on GPU).
+  - `bria-rmbg` (BRIA RMBG-1.4) — Studio-grade commercial segmentation model (~3s on GPU).
+  - `birefnet-general-lite` (BiRefNet Lite) — High-resolution bilateral reference network for intricate contours.
+- **Smart Edge Decontamination (Defringe):**
+  - Automatically removes background color spill and trapped background pockets while preserving white foreground details.
+- **Interactive Brush Editor (Restore & Erase):**
+  - **Restore** missing details from the original image or **Erase** unwanted regions using soft or hard brushes.
+  - **Original Guide** overlay to inspect the source image underneath transparent areas while painting.
+  - **Cursor-Anchored Wheel Zoom** (scroll wheel to zoom directly toward the pointer), **Right-Click / Spacebar Drag** to pan, **`Alt + Wheel`** to resize the brush, and **Undo / Redo (`Ctrl + Z` / `Ctrl + Y`)**.
+- **Post-Generation Subject Outline:**
+  - Optional customizable contour stroke with adjustable thickness (`0–36 px`), color presets, and custom color picker, exported and saved directly with the cutout.
+- **Manual Execution & Auto-Save Workflow:**
+  - Uploading or pasting (`Ctrl + V`) an image stages it for inspection without triggering automatic rendering. Processing starts only when clicking **Remove Background**.
+  - Automatically writes processed and edited outputs to your configured Output Folder, prompting with a native directory selector if none is set.
+- **Themes & Localization:**
+  - Dark Purple and Light Purple themes.
+  - Built-in English (default) and Spanish interface localization.
 
 ---
 
@@ -46,12 +47,12 @@
 Removo/
 ├── assets/                     # SVG, PNG, and multi-resolution ICO icons
 ├── backend/
-│   ├── engine.py               # ONNX session manager, warmup, and inference pipeline
-│   └── server.py               # FastAPI endpoints, native folder dialog, and auto-save
+│   ├── engine.py               # DirectML GPU / ONNX session manager and edge decontamination
+│   └── server.py               # FastAPI endpoints, native folder selector, and auto-save
 ├── frontend/
 │   ├── index.html              # Application layout (Single, Batch, Settings)
 │   ├── style.css               # Dark & Light purple themes
-│   └── app.js                  # State management, i18n, and comparison slider
+│   └── app.js                  # Brush editor, subject outline, i18n, and state controller
 ├── create_desktop_shortcut.py  # Creates a Windows desktop shortcut
 ├── generate_assets.py          # Generates application icons
 ├── launch.bat                  # Command-line launcher
