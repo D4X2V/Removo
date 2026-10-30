@@ -65,6 +65,8 @@ const I18N = {
     brush_save: "Save Changes",
     editor_shortcuts_hint: "Wheel: Zoom to cursor • Right-Click or Space: Move • Alt + Wheel: Brush Size • Ctrl+Z: Undo",
     toast_edits_saved: "Edited image saved",
+    editor_close: "Close",
+    panel_brush_title: "Brush",
     save_status_saving: "Saving...",
     save_status_done: "Saved to your output folder",
     save_status_nofolder: "Choose an output folder to save",
@@ -152,6 +154,8 @@ const I18N = {
     brush_save: "Guardar Cambios",
     editor_shortcuts_hint: "Rueda: Zoom al cursor • Clic Derecho o Espacio: Mover • Alt + Rueda: Tamaño Pincel • Ctrl+Z: Deshacer",
     toast_edits_saved: "Imagen editada guardada",
+    editor_close: "Cerrar",
+    panel_brush_title: "Pincel",
     save_status_saving: "Guardando...",
     save_status_done: "Guardado en tu carpeta de salida",
     save_status_nofolder: "Elige una carpeta de salida para guardar",
@@ -739,6 +743,7 @@ let lastMouseClient = { x: 0, y: 0 };
 let lastPaintPt = null;
 let editorUndoStack = [];
 let editorRedoStack = [];
+let editorPointerOverUI = false;
 let editorHasUnsavedChanges = false;
 
 let origOffscreenCanvas = null;
@@ -775,6 +780,11 @@ function setupBrushEditor() {
     if (!cursor) return;
     const editContainer = document.getElementById("editViewContainer");
     if (!editContainer || editContainer.classList.contains("hidden")) {
+      cursor.classList.add("hidden");
+      return;
+    }
+
+    if (editorPointerOverUI && !isPainting && !isPanningEditor) {
       cursor.classList.add("hidden");
       return;
     }
@@ -1164,8 +1174,8 @@ function setBrushMode(mode) {
   const cursor = document.getElementById("brushCursor");
   const viewport = document.getElementById("editorViewport");
 
-  const inactiveCls = "px-3 py-1.5 rounded-lg text-xs font-semibold btn-secondary flex items-center gap-1.5";
-  const activeCls = "px-3 py-1.5 rounded-lg text-xs font-semibold btn-primary flex items-center gap-1.5";
+  const inactiveCls = "w-10 h-10 rounded-xl flex items-center justify-center btn-secondary";
+  const activeCls = "w-10 h-10 rounded-xl flex items-center justify-center btn-primary";
 
   if (restoreBtn) restoreBtn.className = mode === "restore" ? activeCls : inactiveCls;
   if (eraseBtn) eraseBtn.className = mode === "erase" ? activeCls : inactiveCls;
@@ -1621,4 +1631,25 @@ function fitEditorCanvasToViewport() {
 window.addEventListener("resize", () => {
   const ec = document.getElementById("editViewContainer");
   if (ec && !ec.classList.contains("hidden")) fitEditorCanvasToViewport();
+});
+function toggleEditorPanel(force) {
+  const panel = document.getElementById("editorSidePanel");
+  if (!panel) return;
+  const open = typeof force === "boolean" ? force : panel.classList.contains("translate-x-full");
+  panel.classList.toggle("translate-x-full", !open);
+  if (!open) editorPointerOverUI = false;
+}
+
+function closeEditor() {
+  editorPointerOverUI = false;
+  toggleEditorPanel(false);
+  setViewMode("split");
+}
+
+window.addEventListener("keydown", e => {
+  const ec = document.getElementById("editViewContainer");
+  if (!ec || ec.classList.contains("hidden")) return;
+  if (e.key === "Escape") { closeEditor(); return; }
+  if (e.target && ["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName)) return;
+  if (e.key.toLowerCase() === "p" && !e.ctrlKey && !e.metaKey) toggleEditorPanel();
 });
