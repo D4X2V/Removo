@@ -1,4 +1,4 @@
-// Removo — Frontend Controller
+﻿// Removo — Frontend Controller
 
 let currentFile = null;
 let currentProcessedData = null;
@@ -65,6 +65,9 @@ const I18N = {
     brush_save: "Save Changes",
     editor_shortcuts_hint: "Wheel: Zoom to cursor • Right-Click or Space: Move • Alt + Wheel: Brush Size • Ctrl+Z: Undo",
     toast_edits_saved: "Edited image saved",
+    save_status_saving: "Saving...",
+    save_status_done: "Saved to your output folder",
+    save_status_nofolder: "Choose an output folder to save",
     outline_title: "Subject Outline",
     outline_width_label: "Thickness",
     outline_color_label: "Color:",
@@ -149,6 +152,9 @@ const I18N = {
     brush_save: "Guardar Cambios",
     editor_shortcuts_hint: "Rueda: Zoom al cursor • Clic Derecho o Espacio: Mover • Alt + Rueda: Tamaño Pincel • Ctrl+Z: Deshacer",
     toast_edits_saved: "Imagen editada guardada",
+    save_status_saving: "Guardando...",
+    save_status_done: "Guardado en tu carpeta de salida",
+    save_status_nofolder: "Elige una carpeta de salida para guardar",
     outline_title: "Contorno (Outline)",
     outline_width_label: "Grosor",
     outline_color_label: "Color:",
@@ -1217,6 +1223,8 @@ function applyEditorTransform() {
   const badge = document.getElementById("editorZoomBadge");
   if (inner) {
     inner.style.transform = `translate(${editorPanX}px, ${editorPanY}px) scale(${editorZoom})`;
+    const cv = document.getElementById("editorCanvas");
+    if (cv) cv.style.imageRendering = editorZoom > 2.5 ? "pixelated" : "auto";
   }
   if (badge) {
     badge.innerText = `${Math.round(editorZoom * 100)}%`;
@@ -1359,11 +1367,46 @@ function composeCutoutWithOutline() {
   return outlineOutputCanvas.toDataURL("image/png");
 }
 
+let saveStatusTimer = null;
+
+function showSaveStatus(state, path) {
+  const panel = document.getElementById("saveStatusPanel");
+  if (!panel) return;
+  const title = document.getElementById("saveStatusTitle");
+  const pathEl = document.getElementById("saveStatusPath");
+  const icon = document.getElementById("saveStatusIcon");
+  clearTimeout(saveStatusTimer);
+  panel.classList.remove("hidden");
+  if (state === "saving") {
+    title.innerText = t("save_status_saving");
+    pathEl.innerText = "";
+    icon.innerHTML = '<div class="w-4 h-4 rounded-full border-2 border-emerald-400/30 border-t-emerald-400 animate-spin"></div>';
+  } else {
+    title.innerText = t("save_status_done");
+    pathEl.innerText = path || "";
+    icon.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i>';
+    if (window.lucide) lucide.createIcons();
+    saveStatusTimer = setTimeout(hideSaveStatus, 9000);
+  }
+}
+
+function hideSaveStatus() {
+  const panel = document.getElementById("saveStatusPanel");
+  if (panel) panel.classList.add("hidden");
+}
+
 async function saveCurrentResultToDisk() {
   if (!currentProcessedData) return;
   const finalDataUrl = syncEditorCanvasToPreviews();
   if (!finalDataUrl) return;
 
+  if (!(appSettings.output_folder || "").trim()) {
+    showToast(t("save_status_nofolder"), "folder");
+    const chosen = await selectOutputFolder();
+    if (!chosen) return;
+  }
+
+  showSaveStatus("saving");
   try {
     const res = await fetch("/api/save-edited", {
       method: "POST",
@@ -1374,25 +1417,25 @@ async function saveCurrentResultToDisk() {
         filename: currentFile ? currentFile.name : "image.png"
       })
     });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.saved_path) {
-        currentProcessedData.saved_path = data.saved_path;
-        const savedBanner = document.getElementById("savedPathBanner");
-        if (savedBanner) {
-          savedBanner.innerText = `${t("toast_saved_to")}${data.saved_path}`;
-          savedBanner.classList.remove("hidden");
-        }
-        showToast(`${t("toast_edits_saved")}: ${data.saved_path}`, "check-circle");
-      } else {
-        showToast(t("toast_edits_saved"), "check-circle");
+    if (!res.ok) throw new Error("Save failed");
+    const data = await res.json();
+    if (data.saved_path) {
+      currentProcessedData.saved_path = data.saved_path;
+      const savedBanner = document.getElementById("savedPathBanner");
+      if (savedBanner) {
+        savedBanner.innerText = `${t("toast_saved_to")}${data.saved_path}`;
+        savedBanner.classList.remove("hidden");
       }
+      showSaveStatus("done", data.saved_path);
+      showToast(`${t("toast_edits_saved")}: ${data.saved_path}`, "check-circle");
+    } else {
+      hideSaveStatus();
     }
   } catch (err) {
+    hideSaveStatus();
     showToast(err.message, "alert-circle");
   }
 }
-
 function applyBg(color) {
   currentBgColor = color;
   const stage = document.getElementById("stageWrapper");
