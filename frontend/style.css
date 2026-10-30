@@ -1,0 +1,167 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg-primary: #090514;
+  --bg-secondary: #130B24;
+  --bg-card: rgba(22, 14, 38, 0.75);
+  --border-purple: rgba(168, 85, 247, 0.25);
+  --border-purple-glow: rgba(192, 132, 252, 0.5);
+  --purple-neon: #A855F7;
+  --purple-bright: #C084FC;
+  --purple-deep: #7C3AED;
+  --purple-glow: 0 0 25px rgba(168, 85, 247, 0.35);
+  --purple-glow-lg: 0 0 45px rgba(168, 85, 247, 0.5);
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  background-color: var(--bg-primary);
+  background-image: 
+    radial-gradient(circle at 15% 15%, rgba(124, 58, 237, 0.18) 0%, transparent 45%),
+    radial-gradient(circle at 85% 85%, rgba(168, 85, 247, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(147, 51, 234, 0.08) 0%, transparent 60%);
+  color: #F3F4F6;
+  min-height: 100vh;
+  margin: 0;
+  overflow-x: hidden;
+}
+
+/* Glassmorphism Card */
+.glass-panel {
+  background: var(--bg-card);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-purple);
+  border-radius: 1.25rem;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45);
+}
+
+.glass-panel:hover {
+  border-color: rgba(168, 85, 247, 0.4);
+}
+
+/* Neon Violet Glow Elements */
+.purple-glow-btn {
+  background: linear-gradient(135deg, #7C3AED 0%, #A855F7 100%);
+  box-shadow: 0 4px 20px rgba(168, 85, 247, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.purple-glow-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 30px rgba(168, 85, 247, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.5);
+  filter: brightness(1.1);
+}
+
+.purple-glow-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.purple-glow-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+}
+
+/* Custom Purple Transparent Checkerboard Pattern */
+.bg-transparency-grid {
+  background-color: #120924;
+  background-image: 
+    linear-gradient(45deg, #1C0F38 25%, transparent 25%), 
+    linear-gradient(-45deg, #1C0F38 25%, transparent 25%), 
+    linear-gradient(45deg, transparent 75%, #1C0F38 75%), 
+    linear-gradient(-45deg, transparent 75%, #1C0F38 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+}
+
+/* Before / After Split Slider Container */
+.comparison-container {
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+  border-radius: 1rem;
+}
+
+.comparison-before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.comparison-divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: #C084FC;
+  box-shadow: 0 0 12px #C084FC, 0 0 24px rgba(192, 132, 252, 0.8);
+  cursor: ew-resize;
+  z-index: 30;
+}
+
+.comparison-handle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #7C3AED, #A855F7);
+  border: 2px solid #FFFFFF;
+  box-shadow: 0 0 15px rgba(168, 85, 247, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+/* Dropzone styling */
+.dropzone-border {
+  border: 2px dashed rgba(168, 85, 247, 0.4);
+  transition: all 0.25s ease;
+}
+
+.dropzone-border.drag-over {
+  border-color: #C084FC;
+  background-color: rgba(147, 51, 234, 0.15);
+  box-shadow: inset 0 0 30px rgba(168, 85, 247, 0.25);
+  transform: scale(1.01);
+}
+
+/* Pulse Animation */
+@keyframes purplePulse {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(168, 85, 247, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 35px rgba(168, 85, 247, 0.8);
+  }
+}
+
+.animate-purple-pulse {
+  animation: purplePulse 2s infinite ease-in-out;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0D071A;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3B1C6E;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #6D28D9;
+}
