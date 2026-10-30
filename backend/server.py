@@ -60,7 +60,7 @@ def save_config(cfg: dict) -> dict:
 async def lifespan(app: FastAPI):
     cfg = load_config()
     if cfg.get("preload_on_startup", True):
-        warmup_model_async(cfg.get("default_model", "bria-rmbg"))
+        warmup_model_async(cfg.get("default_model", "bria-rmbg"), delay=2.5)
     yield
 
 app = FastAPI(title="Removo", version="2.0.0", lifespan=lifespan)

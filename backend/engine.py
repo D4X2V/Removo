@@ -41,10 +41,10 @@ AVAILABLE_MODELS = {
 
 def _create_session_options() -> ort.SessionOptions:
     opts = ort.SessionOptions()
-    opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+    opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_BASIC
     cpu_threads = os.cpu_count() or 4
-    opts.intra_op_num_threads = cpu_threads
-    opts.inter_op_num_threads = max(1, cpu_threads // 2)
+    opts.intra_op_num_threads = max(2, cpu_threads - 2)
+    opts.inter_op_num_threads = 1
     opts.enable_mem_pattern = True
     opts.enable_cpu_mem_arena = True
     opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
@@ -77,9 +77,11 @@ def get_session(model_name: str):
 
         return _SESSIONS_CACHE[model_name]
 
-def warmup_model_async(model_name: str = "bria-rmbg"):
-    """Preload the default model in a background thread so the first render is instant."""
+def warmup_model_async(model_name: str = "bria-rmbg", delay: float = 2.5):
+    """Preload the default model in a background thread after the UI has loaded."""
     def _worker():
+        if delay > 0:
+            time.sleep(delay)
         try:
             get_session(model_name)
         except Exception as e:
