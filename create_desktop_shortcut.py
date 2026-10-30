@@ -1,33 +1,28 @@
-import os
-import sys
-from pathlib import Path
+import subprocess
 
-def make_shortcut():
-    import win32com.client # if available, or use powershell / wscript
-    pass
-
-# We will use PowerShell script or WScript to make a 100% reliable shortcut
 ps_script = r"""
 $WshShell = New-Object -ComObject WScript.Shell
 $DesktopPath = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::Desktop)
-$ShortcutPath = Join-Path $DesktopPath "VioletCut AI.lnk"
-$TargetDir = "C:\Users\Dako9\.gemini\antigravity\scratch\VioletCut-AI"
-$TargetFile = Join-Path $TargetDir "launch.bat"
+$ShortcutPath = Join-Path $DesktopPath "Removo.lnk"
+$TargetDir = "C:\Users\Dako9\.gemini\antigravity\scratch\Removo"
+$TargetFile = Join-Path $TargetDir "Removo.vbs"
 $IconFile = Join-Path $TargetDir "assets\app.ico"
 
 $Shortcut = $WshShell.CreateShortcut($ShortcutPath)
 $Shortcut.TargetPath = $TargetFile
 $Shortcut.WorkingDirectory = $TargetDir
 $Shortcut.IconLocation = "$IconFile,0"
-$Shortcut.Description = "VioletCut AI Studio - Recorte Ultra-Preciso"
+$Shortcut.Description = "Removo - Local Background Removal"
 $Shortcut.Save()
-Write-Host "Acceso directo creado exitosamente en: $ShortcutPath"
+Write-Host "Shortcut created: $ShortcutPath"
 """
 
 if __name__ == "__main__":
-    import subprocess
-    cmd = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_script]
-    res = subprocess.run(cmd, capture_output=True, text=True)
-    print(res.stdout)
+    res = subprocess.run(
+        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_script],
+        capture_output=True,
+        text=True
+    )
+    print(res.stdout.strip())
     if res.stderr:
-        print("Error:", res.stderr)
+        print(res.stderr.strip())

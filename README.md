@@ -1,119 +1,96 @@
-# 💜 VioletCut AI Studio — Ultra-Precision Background Removal
+# Removo
 
 <div align="center">
-  <img src="assets/logo.svg" alt="VioletCut AI Logo" width="140" height="140">
+  <img src="assets/logo.svg" alt="Removo Logo" width="120" height="120">
   <br>
-  <h3>Segmentación Neuronal de Máxima Fidelidad & Estudio de Recorte Local</h3>
+  <p><strong>Local background removal utility powered by ONNX Runtime, BRIA RMBG-1.4, and BiRefNet.</strong></p>
 
-  [![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
-  [![Python](https://img.shields.io/badge/Python-3.10%2B-blueviolet.svg)](https://www.python.org/)
+  [![License: MIT](https://img.shields.io/badge/License-MIT-7C3AED.svg)](LICENSE)
+  [![Python](https://img.shields.io/badge/Python-3.10%2B-8B5CF6.svg)](https://www.python.org/)
   [![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688.svg)](https://fastapi.tiangolo.com/)
-  [![Model](https://img.shields.io/badge/AI%20Engine-BiRefNet%20%7C%20RMBG--1.4-8B5CF6.svg)](https://github.com/ZhengPeng7/BiRefNet)
-  [![Privacy](https://img.shields.io/badge/Privacy-100%25%20On--Device-success.svg)](#privacidad)
+  [![ONNX Runtime](https://img.shields.io/badge/Inference-ONNX%20Runtime-A855F7.svg)](https://onnxruntime.ai/)
 </div>
 
 ---
 
-## 🌟 ¿Qué es VioletCut AI?
+## Overview
 
-**VioletCut AI** es una aplicación de escritorio moderna y ultra-precisa diseñada para eliminar y reemplazar fondos de imágenes utilizando redes neuronales de última generación (**BiRefNet** y **BRIA RMBG-1.4**). 
+**Removo** is a local desktop application for removing image backgrounds offline. It runs neural segmentation models directly on your hardware using ONNX Runtime, ensuring zero cloud uploads and full control over the rendering pipeline.
 
-Nacida como una evolución de calidad superior frente a aplicaciones tradicionales como *unbagrnd*, **VioletCut AI** prioriza:
-1. **Fidelidad quirúrgica de bordes**: Cabellos finos, transparencias en cristales, pelajes y siluetas complejas sin bordes pixelados ni halos.
-2. **Control total de usuario**: La imagen **no se procesa automáticamente al subirla**. Puedes previsualizar el archivo original en resolución completa, configurar el modelo deseado y ejecutar el renderizado únicamente al pulsar el botón principal.
-3. **Estética Violet / Cyber-Studio**: Interfaz moderna en tonos púrpura profundo y resplandor neón con efectos glassmorphism.
-4. **Privacidad 100% Local**: Todo el procesamiento se realiza en tu hardware mediante **ONNX Runtime**, sin subir tus imágenes a ningún servidor externo.
+### Key Features
 
----
-
-## 🚀 Comparativa: VioletCut AI vs. unbagrnd
-
-| Característica | unbagrnd | 💜 VioletCut AI Studio |
-| :--- | :--- | :--- |
-| **Motor de IA Principal** | IS-Net estándar | **BiRefNet Ultra-HD** + **BRIA RMBG-1.4 Pro** |
-| **Detalle en Cabellos / Finos** | Medio | **Quirúrgico / Subpíxel** con Alpha Matting |
-| **Flujo de Renderizado** | Inmediato / Automático | **Manual y Controlado** (solo tras presionar el botón) |
-| **Comparador Interactivo** | Básico | **Deslizador Split Before/After**, Lado a Lado y Zoom |
-| **Paleta de Interfaz** | Neutro / Grisáceo | **Obsidian Purple / Neón Violeta** con Glassmorphism |
-| **Copiar al Portapapeles** | Manual / Archivo | **1-Clic PNG Transparente** (listo para Photoshop/Canva) |
-| **Procesamiento por Lotes** | Básico | **Cola visual con barra de progreso y descarga ZIP** |
-| **Selector de Fondo** | Limitado | Transparente, Colores Sólidos, Gradientes y Selector HEX |
-
----
-
-## 🎨 Capturas de Interfaz y Flujo de Trabajo
-
-### 1. Carga Limpia con Inspección Previa
-Al soltar o pegar una imagen (`Ctrl + V`), el sistema muestra sus dimensiones originales, peso y aspecto, permitiendo elegir el modelo de red neuronal y filtros antes de procesar.
-
-### 2. Deslizador Interactivo Before / After
-Compara instantáneamente los bordes del original frente al recorte con un divisor interactivo deslizable en tiempo real.
-
-### 3. Copiado Instantáneo
-Un botón dedicado para transferir el recorte en formato PNG con canal alfa directamente a tu portapapeles, listo para pegar con `Ctrl + V` en Photoshop, Illustrator, Canva, Figma o Word.
+- **Multiple Segmentation Models:**
+  - `bria-rmbg` (BRIA RMBG-1.4) — High-speed inference with sharp subject and object boundaries.
+  - `birefnet-general` (BiRefNet) — High-resolution bilateral network for fine hair, fur, and complex edges.
+  - `isnet-general-use` (IS-Net) — Lightweight model for low-memory environments.
+  - `u2net` — Standard salience segmentation model.
+- **Manual Execution Workflow:** Uploading or pasting an image (`Ctrl + V`) stages it for inspection without triggering automatic inference. Rendering starts only when clicking **Remove Background**.
+- **Auto-Save & Native Folder Picker:** Automatically writes processed outputs to your chosen directory. If no output directory is configured when rendering starts, Removo prompts you with a native OS folder selector (similar to Upscayl).
+- **Performance Optimizations:**
+  - Multi-threaded ONNX Runtime graph optimization (`ORT_ENABLE_ALL`) and memory arena caching.
+  - Background model pre-warming on startup to eliminate cold-start latency.
+  - Fast lossless PNG encoding (`compress_level=1`).
+- **Interactive Inspection & Export:**
+  - Split comparison slider, side-by-side view, and backdrop color switcher.
+  - One-click PNG clipboard copy with alpha channel preserved.
+  - Bulk batch processing with automatic folder saving and `.zip` export.
+- **Customizable Interface:**
+  - Dark and Light purple themes.
+  - Built-in English (default) and Spanish localization.
 
 ---
 
-## 🛠️ Tecnologías Utilizadas
+## Project Structure
 
-- **Frontend:** HTML5, TailwindCSS, CSS3 Glassmorphism personalizado, Lucide Icons, Vanilla JavaScript modular.
-- **Backend:** FastAPI, Uvicorn, Python 3.12.
-- **Inferencia de IA:** ONNX Runtime, Rembg, PIL (Pillow), NumPy, PyMatting.
-- **Modelos Integrados:**
-  - `birefnet-general` (Bilateral Reference Network - 973 MB)
-  - `bria-rmbg` (BRIA AI RMBG-1.4 Studio Pro - 1.02 GB)
-  - `isnet-general-use` (IS-Net General Use)
-  - `u2net` (U2Net Clásico)
-
----
-
-## 💻 Instalación y Uso Rápido en Windows
-
-### Requisitos Previos
-- Python 3.10 o superior instalado.
-- Navegador moderno (Brave, Chrome o Edge).
-
-### 1. Clonar el Repositorio
-```bash
-git clone https://github.com/Diego-Villanueva-v/VioletCut-AI.git
-cd VioletCut-AI
+```text
+Removo/
+├── assets/                     # SVG, PNG, and multi-resolution ICO icons
+├── backend/
+│   ├── engine.py               # ONNX session manager, warmup, and inference pipeline
+│   └── server.py               # FastAPI endpoints, native folder dialog, and auto-save
+├── frontend/
+│   ├── index.html              # Application layout (Single, Batch, Settings)
+│   ├── style.css               # Dark & Light purple themes
+│   └── app.js                  # State management, i18n, and comparison slider
+├── create_desktop_shortcut.py  # Creates a Windows desktop shortcut
+├── generate_assets.py          # Generates application icons
+├── launch.bat                  # Command-line launcher
+├── Removo.vbs                  # Windowless desktop launcher
+├── main.py                     # Server entrypoint and native app-mode window launcher
+└── requirements.txt            # Python dependencies
 ```
 
-### 2. Instalar Dependencias
+---
+
+## Getting Started
+
+### Prerequisites
+
+- Python 3.10+
+- Windows 10/11 (with Edge, Chrome, or Brave for standalone `--app` window mode)
+
+### Installation
+
 ```bash
+git clone https://github.com/Diego-Villanueva-v/Removo.git
+cd Removo
 pip install -r requirements.txt
 ```
 
-### 3. Iniciar la Aplicación
-Puedes iniciar VioletCut AI de tres formas sencillas:
+### Running the Application
 
-- **Opción A (Acceso Directo en Escritorio):**
-  Ejecuta una vez:
-  ```bash
-  python create_desktop_shortcut.py
-  ```
-  Esto creará el acceso directo `VioletCut AI` con su icono púrpura directamente en tu Escritorio.
+```bash
+python main.py
+```
 
-- **Opción B (Doble clic en Windows):**
-  Haz doble clic sobre `launch.bat` o `VioletCut.vbs`.
+To create a shortcut on your Windows Desktop:
 
-- **Opción C (Terminal):**
-  ```bash
-  python main.py
-  ```
+```bash
+python create_desktop_shortcut.py
+```
 
 ---
 
-## ⌨️ Atajos y Productividad
+## License
 
-- `Ctrl + V`: Pega cualquier imagen copiada en tu portapapeles para cargarla al instante.
-- `Botón Copiar al Portapapeles`: Copia el PNG transparente procesado al portapapeles del sistema operativo.
-- `Carpeta Recortes`: Abre la carpeta `Imágenes/VioletCut` en el Explorador de Windows con un solo clic.
-
----
-
-## 📄 Licencia
-
-Este proyecto está bajo la Licencia **MIT**. Consulta el archivo [LICENSE](LICENSE) para más detalles.
-
-Desarrollado con dedicación por **Diego Villanueva**.
+Released under the [MIT License](LICENSE). Created by [Diego Villanueva](https://github.com/Diego-Villanueva-v).

@@ -1,6 +1,4 @@
 @echo off
-title VioletCut AI Studio
+title Removo
 cd /d "%~dp0"
-echo Iniciando VioletCut AI...
 python main.py
-pause

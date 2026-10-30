@@ -1,93 +1,163 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
-:root {
-  --bg-primary: #090514;
-  --bg-secondary: #130B24;
-  --bg-card: rgba(22, 14, 38, 0.75);
-  --border-purple: rgba(168, 85, 247, 0.25);
-  --border-purple-glow: rgba(192, 132, 252, 0.5);
-  --purple-neon: #A855F7;
-  --purple-bright: #C084FC;
-  --purple-deep: #7C3AED;
-  --purple-glow: 0 0 25px rgba(168, 85, 247, 0.35);
-  --purple-glow-lg: 0 0 45px rgba(168, 85, 247, 0.5);
+:root, [data-theme="dark"] {
+  --bg-main: #0B0813;
+  --bg-elevated: #130E21;
+  --bg-card: rgba(21, 15, 36, 0.85);
+  --bg-input: #1A132B;
+  --bg-hover: rgba(139, 92, 246, 0.12);
+  --text-primary: #F5F3FF;
+  --text-secondary: #A79EC0;
+  --text-muted: #6E6488;
+  --border-subtle: rgba(139, 92, 246, 0.22);
+  --border-focus: #8B5CF6;
+  --accent-primary: #7C3AED;
+  --accent-hover: #8B5CF6;
+  --accent-light: #A78BFA;
+  --checker-a: #120C1F;
+  --checker-b: #1B122E;
+  --shadow-card: 0 8px 30px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme="light"] {
+  --bg-main: #F6F5FA;
+  --bg-elevated: #FFFFFF;
+  --bg-card: rgba(255, 255, 255, 0.92);
+  --bg-input: #F0EDF8;
+  --bg-hover: rgba(124, 58, 237, 0.08);
+  --text-primary: #18122B;
+  --text-secondary: #4E4466;
+  --text-muted: #7E7496;
+  --border-subtle: rgba(124, 58, 237, 0.2);
+  --border-focus: #7C3AED;
+  --accent-primary: #7C3AED;
+  --accent-hover: #6D28D9;
+  --accent-light: #6D28D9;
+  --checker-a: #EAE6F3;
+  --checker-b: #DCD6EA;
+  --shadow-card: 0 6px 24px rgba(91, 33, 182, 0.08);
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  background-color: var(--bg-primary);
-  background-image: 
-    radial-gradient(circle at 15% 15%, rgba(124, 58, 237, 0.18) 0%, transparent 45%),
-    radial-gradient(circle at 85% 85%, rgba(168, 85, 247, 0.15) 0%, transparent 50%),
-    radial-gradient(circle at 50% 50%, rgba(147, 51, 234, 0.08) 0%, transparent 60%);
-  color: #F3F4F6;
-  min-height: 100vh;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: var(--bg-main);
+  color: var(--text-primary);
   margin: 0;
-  overflow-x: hidden;
+  min-height: 100vh;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* Glassmorphism Card */
-.glass-panel {
+.surface-card {
   background: var(--bg-card);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--border-purple);
-  border-radius: 1.25rem;
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  box-shadow: var(--shadow-card);
 }
 
-.glass-panel:hover {
-  border-color: rgba(168, 85, 247, 0.4);
+.surface-input {
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  border-radius: 10px;
+  transition: border-color 0.15s ease;
 }
 
-/* Neon Violet Glow Elements */
-.purple-glow-btn {
-  background: linear-gradient(135deg, #7C3AED 0%, #A855F7 100%);
-  box-shadow: 0 4px 20px rgba(168, 85, 247, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.3);
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+.surface-input:focus {
+  outline: none;
+  border-color: var(--border-focus);
 }
 
-.purple-glow-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 30px rgba(168, 85, 247, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.5);
-  filter: brightness(1.1);
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-hover));
+  color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  font-weight: 600;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+  box-shadow: 0 4px 16px rgba(124, 58, 237, 0.35);
 }
 
-.purple-glow-btn:active:not(:disabled) {
-  transform: translateY(0);
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 22px rgba(124, 58, 237, 0.48);
 }
 
-.purple-glow-btn:disabled {
+.btn-primary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  filter: grayscale(0.5);
 }
 
-/* Custom Purple Transparent Checkerboard Pattern */
+.btn-secondary {
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  font-weight: 500;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--border-focus);
+}
+
+.text-secondary-theme {
+  color: var(--text-secondary);
+}
+
+.text-muted-theme {
+  color: var(--text-muted);
+}
+
+.border-theme {
+  border-color: var(--border-subtle);
+}
+
+.bg-elevated-theme {
+  background-color: var(--bg-elevated);
+}
+
+/* Checkerboard Transparency Grid */
 .bg-transparency-grid {
-  background-color: #120924;
-  background-image: 
-    linear-gradient(45deg, #1C0F38 25%, transparent 25%), 
-    linear-gradient(-45deg, #1C0F38 25%, transparent 25%), 
-    linear-gradient(45deg, transparent 75%, #1C0F38 75%), 
-    linear-gradient(-45deg, transparent 75%, #1C0F38 75%);
+  background-color: var(--checker-a);
+  background-image:
+    linear-gradient(45deg, var(--checker-b) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--checker-b) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--checker-b) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--checker-b) 75%);
   background-size: 20px 20px;
   background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
 }
 
-/* Before / After Split Slider Container */
+/* Dropzone */
+.dropzone-box {
+  border: 2px dashed var(--border-subtle);
+  transition: all 0.2s ease;
+}
+
+.dropzone-box:hover, .dropzone-box.drag-over {
+  border-color: var(--border-focus);
+  background-color: var(--bg-hover);
+}
+
+/* Split Comparison Slider */
 .comparison-container {
   position: relative;
   overflow: hidden;
   user-select: none;
-  border-radius: 1rem;
+  border-radius: 12px;
 }
 
 .comparison-before {
   position: absolute;
   top: 0;
   left: 0;
-  width: 100%;
   height: 100%;
   overflow: hidden;
 }
@@ -96,9 +166,9 @@ body {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 3px;
-  background: #C084FC;
-  box-shadow: 0 0 12px #C084FC, 0 0 24px rgba(192, 132, 252, 0.8);
+  width: 2px;
+  background: #8B5CF6;
+  box-shadow: 0 0 10px rgba(139, 92, 246, 0.8);
   cursor: ew-resize;
   z-index: 30;
 }
@@ -108,60 +178,30 @@ body {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #7C3AED, #A855F7);
+  background: var(--accent-primary);
   border: 2px solid #FFFFFF;
-  box-shadow: 0 0 15px rgba(168, 85, 247, 0.8);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-}
-
-/* Dropzone styling */
-.dropzone-border {
-  border: 2px dashed rgba(168, 85, 247, 0.4);
-  transition: all 0.25s ease;
-}
-
-.dropzone-border.drag-over {
-  border-color: #C084FC;
-  background-color: rgba(147, 51, 234, 0.15);
-  box-shadow: inset 0 0 30px rgba(168, 85, 247, 0.25);
-  transform: scale(1.01);
-}
-
-/* Pulse Animation */
-@keyframes purplePulse {
-  0%, 100% {
-    box-shadow: 0 0 15px rgba(168, 85, 247, 0.4);
-  }
-  50% {
-    box-shadow: 0 0 35px rgba(168, 85, 247, 0.8);
-  }
-}
-
-.animate-purple-pulse {
-  animation: purplePulse 2s infinite ease-in-out;
+  color: #FFFFFF;
 }
 
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
 }
-
 ::-webkit-scrollbar-track {
-  background: #0D071A;
+  background: var(--bg-main);
 }
-
 ::-webkit-scrollbar-thumb {
-  background: #3B1C6E;
+  background: var(--border-subtle);
   border-radius: 4px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: #6D28D9;
+  background: var(--accent-primary);
 }
