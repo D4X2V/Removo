@@ -192,6 +192,50 @@ async def preload_model(payload: dict = Body(...)):
     get_session(model_name)
     return {"status": "ready", "model_name": model_name, "cached_models": list(_SESSIONS_CACHE.keys())}
 
+@app.post("/api/save-edited")
+async def save_edited_image(payload: dict = Body(...)):
+    """Save manually brushed/restored cutout image back to disk."""
+    data_url = payload.get("image", "")
+    saved_path = (payload.get("saved_path") or "").strip()
+    filename = payload.get("filename") or "image.png"
+
+    if not data_url or "," not in data_url:
+        raise HTTPException(status_code=400, detail="Invalid image data")
+
+    cfg = load_config()
+    output_folder = (cfg.get("output_folder") or "").strip()
+    out_fmt = cfg.get("output_format", "png").lower()
+
+    try:
+        b64_part = data_url.split(",", 1)[1]
+        raw_bytes = base64.b64decode(b64_part)
+        img = Image.open(io.BytesIO(raw_bytes)).convert("RGBA")
+
+        target_path = None
+        if saved_path:
+            target_path = Path(saved_path)
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+        elif output_folder:
+            out_dir = Path(output_folder)
+            out_dir.mkdir(parents=True, exist_ok=True)
+            stem = Path(filename).stem
+            target_path = resolve_unique_path(
+                out_dir,
+                stem,
+                out_fmt,
+                overwrite=cfg.get("overwrite_existing", False)
+            )
+
+        if target_path:
+            disk_bytes = save_image_bytes(img, out_fmt)
+            with open(target_path, "wb") as f:
+                f.write(disk_bytes)
+            return {"status": "saved", "saved_path": str(target_path)}
+
+        return {"status": "ok", "saved_path": None}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/process")
 async def process_image(
     file: UploadFile = File(...),

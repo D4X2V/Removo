@@ -53,6 +53,16 @@ const I18N = {
     view_split: "Split View",
     view_side: "Side by Side",
     view_result: "Result Only",
+    view_edit: "Edit / Restore",
+    brush_restore: "Restore",
+    brush_erase: "Erase",
+    brush_size_label: "Size",
+    brush_soft_label: "Soft Edge",
+    brush_guide_label: "Original Guide",
+    brush_undo: "Undo",
+    brush_reset: "Reset",
+    brush_save: "Save Changes",
+    toast_edits_saved: "Edited image saved",
     bg_preview_label: "Backdrop:",
     copy_png_btn: "Copy PNG to Clipboard",
     open_saved_folder_btn: "Open Output Folder",
@@ -120,6 +130,16 @@ const I18N = {
     view_split: "Comparador",
     view_side: "Lado a Lado",
     view_result: "Solo Resultado",
+    view_edit: "Editar / Recuperar",
+    brush_restore: "Recuperar",
+    brush_erase: "Borrar",
+    brush_size_label: "Tamaño",
+    brush_soft_label: "Borde Suave",
+    brush_guide_label: "Guía Original",
+    brush_undo: "Deshacer",
+    brush_reset: "Restablecer",
+    brush_save: "Guardar Cambios",
+    toast_edits_saved: "Imagen editada guardada",
     bg_preview_label: "Fondo:",
     copy_png_btn: "Copiar PNG al Portapapeles",
     open_saved_folder_btn: "Abrir Carpeta de Salida",
@@ -167,6 +187,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupEvents();
   setupClipboardPaste();
   setupSplitSlider();
+  setupBrushEditor();
   await fetchSettings();
 });
 
@@ -575,7 +596,13 @@ async function executeRender() {
     document.getElementById("sideResultImg").src = data.image;
     document.getElementById("cutoutOnlyImg").src = data.image;
 
+    await initBrushEditorForCurrentResult(
+      document.getElementById("originalPreview").src,
+      data.image
+    );
+
     setSplitPosition(50);
+    setViewMode("split");
 
     loader.classList.add("hidden");
     document.getElementById("resultsContainer").classList.remove("hidden");
@@ -635,18 +662,29 @@ function setViewMode(mode) {
   const splitContainer = document.getElementById("splitViewContainer");
   const sideContainer = document.getElementById("sideBySideContainer");
   const cutoutContainer = document.getElementById("cutoutOnlyContainer");
+  const editContainer = document.getElementById("editViewContainer");
 
   const btnSplit = document.getElementById("viewSplitBtn");
   const btnSide = document.getElementById("viewSideBtn");
   const btnCutout = document.getElementById("viewCutoutBtn");
+  const btnEdit = document.getElementById("viewEditBtn");
+
+  // If leaving edit mode and user painted strokes, sync preview images automatically
+  if (editContainer && !editContainer.classList.contains("hidden") && mode !== "edit") {
+    syncEditorCanvasToPreviews();
+  }
 
   [btnSplit, btnSide, btnCutout].forEach(b => {
-    b.className = "px-3 py-1 rounded-lg text-xs font-medium text-secondary-theme";
+    if (b) b.className = "px-3 py-1 rounded-lg text-xs font-medium text-secondary-theme";
   });
+  if (btnEdit) {
+    btnEdit.className = "px-3 py-1 rounded-lg text-xs font-medium text-secondary-theme flex items-center gap-1.5";
+  }
 
   splitContainer.classList.add("hidden");
   sideContainer.classList.add("hidden");
   cutoutContainer.classList.add("hidden");
+  if (editContainer) editContainer.classList.add("hidden");
 
   if (mode === "split") {
     splitContainer.classList.remove("hidden");
@@ -654,9 +692,397 @@ function setViewMode(mode) {
   } else if (mode === "side") {
     sideContainer.classList.remove("hidden");
     btnSide.className = "px-3 py-1 rounded-lg text-xs font-medium btn-primary";
+  } else if (mode === "edit" && editContainer) {
+    editContainer.classList.remove("hidden");
+    btnEdit.className = "px-3 py-1 rounded-lg text-xs font-medium btn-primary flex items-center gap-1.5";
   } else {
     cutoutContainer.classList.remove("hidden");
     btnCutout.className = "px-3 py-1 rounded-lg text-xs font-medium btn-primary";
+  }
+}
+
+// ==========================================
+// INTERACTIVE BRUSH EDITOR (RESTORE & ERASE)
+// ==========================================
+let brushMode = "restore"; // 'restore' | 'erase'
+let brushSize = 32;
+let editorZoom = 1.0;
+let isPainting = false;
+let lastPaintPt = null;
+let editorUndoStack = [];
+let editorHasUnsavedChanges = false;
+
+let origOffscreenCanvas = null;
+let initialCutoutCanvas = null;
+let brushStampCanvas = null;
+
+function setupBrushEditor() {
+  const canvas = document.getElementById("editorCanvas");
+  const viewport = document.getElementById("editorViewport");
+  const cursor = document.getElementById("brushCursor");
+  if (!canvas || !viewport) return;
+
+  origOffscreenCanvas = document.createElement("canvas");
+  initialCutoutCanvas = document.createElement("canvas");
+  brushStampCanvas = document.createElement("canvas");
+
+  const getCanvasCoords = e => {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return {
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY,
+      scale: scaleX
+    };
+  };
+
+  const updateCursorRing = e => {
+    if (!cursor) return;
+    const editContainer = document.getElementById("editViewContainer");
+    if (!editContainer || editContainer.classList.contains("hidden")) {
+      cursor.classList.add("hidden");
+      return;
+    }
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    if (
+      clientX < rect.left ||
+      clientX > rect.right ||
+      clientY < rect.top ||
+      clientY > rect.bottom
+    ) {
+      cursor.classList.add("hidden");
+      return;
+    }
+    cursor.classList.remove("hidden");
+    const displayScale = rect.width / (canvas.width || 1);
+    const screenDiameter = Math.max(6, brushSize * displayScale);
+    cursor.style.width = `${screenDiameter}px`;
+    cursor.style.height = `${screenDiameter}px`;
+    cursor.style.left = `${clientX}px`;
+    cursor.style.top = `${clientY}px`;
+  };
+
+  const startStroke = e => {
+    if (e.button !== undefined && e.button !== 0) return;
+    e.preventDefault();
+    pushEditorUndoState();
+    isPainting = true;
+    editorHasUnsavedChanges = true;
+    const pt = getCanvasCoords(e);
+    lastPaintPt = pt;
+    paintBrushSegment(pt, pt);
+    updateCursorRing(e);
+  };
+
+  const moveStroke = e => {
+    updateCursorRing(e);
+    if (!isPainting) return;
+    e.preventDefault();
+    const pt = getCanvasCoords(e);
+    paintBrushSegment(lastPaintPt || pt, pt);
+    lastPaintPt = pt;
+  };
+
+  const endStroke = () => {
+    if (!isPainting) return;
+    isPainting = false;
+    lastPaintPt = null;
+  };
+
+  canvas.addEventListener("mousedown", startStroke);
+  window.addEventListener("mousemove", moveStroke);
+  window.addEventListener("mouseup", endStroke);
+  viewport.addEventListener("mouseleave", () => {
+    if (cursor) cursor.classList.add("hidden");
+  });
+
+  canvas.addEventListener("touchstart", startStroke, { passive: false });
+  canvas.addEventListener("touchmove", moveStroke, { passive: false });
+  window.addEventListener("touchend", endStroke);
+
+  // Mouse wheel zoom inside editor viewport when Ctrl is held
+  viewport.addEventListener("wheel", e => {
+    if (e.ctrlKey) {
+      e.preventDefault();
+      changeEditorZoom(e.deltaY < 0 ? 0.25 : -0.25);
+    }
+  }, { passive: false });
+
+  // Ctrl+Z undo shortcut
+  window.addEventListener("keydown", e => {
+    const editContainer = document.getElementById("editViewContainer");
+    if (!editContainer || editContainer.classList.contains("hidden")) return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+      e.preventDefault();
+      undoBrushStroke();
+    }
+  });
+}
+
+async function initBrushEditorForCurrentResult(origDataUrl, cutoutDataUrl) {
+  const canvas = document.getElementById("editorCanvas");
+  const ghostImg = document.getElementById("editorGhostImg");
+  if (!canvas || !origDataUrl || !cutoutDataUrl) return;
+
+  if (ghostImg) {
+    ghostImg.src = origDataUrl;
+    const showGhost = document.getElementById("editorGhostToggle")?.checked ?? true;
+    ghostImg.style.opacity = showGhost ? "0.25" : "0";
+  }
+
+  const loadImg = src =>
+    new Promise((resolve, reject) => {
+      const im = new Image();
+      im.onload = () => resolve(im);
+      im.onerror = reject;
+      im.src = src;
+    });
+
+  try {
+    const [origImg, cutoutImg] = await Promise.all([
+      loadImg(origDataUrl),
+      loadImg(cutoutDataUrl)
+    ]);
+
+    const w = cutoutImg.width;
+    const h = cutoutImg.height;
+
+    canvas.width = w;
+    canvas.height = h;
+    origOffscreenCanvas.width = w;
+    origOffscreenCanvas.height = h;
+    initialCutoutCanvas.width = w;
+    initialCutoutCanvas.height = h;
+    brushStampCanvas.width = w;
+    brushStampCanvas.height = h;
+
+    origOffscreenCanvas.getContext("2d").drawImage(origImg, 0, 0, w, h);
+    initialCutoutCanvas.getContext("2d").drawImage(cutoutImg, 0, 0, w, h);
+    canvas.getContext("2d").drawImage(cutoutImg, 0, 0, w, h);
+
+    // Scale default brush size proportionally to image resolution
+    const defaultBrush = Math.max(12, Math.min(90, Math.round(Math.min(w, h) * 0.04)));
+    updateBrushSize(defaultBrush);
+    const slider = document.getElementById("brushSizeSlider");
+    if (slider) slider.value = defaultBrush;
+
+    editorUndoStack = [];
+    editorHasUnsavedChanges = false;
+    resetEditorZoom();
+  } catch (err) {
+    console.error("Failed to initialize brush editor:", err);
+  }
+}
+
+function pushEditorUndoState() {
+  const canvas = document.getElementById("editorCanvas");
+  if (!canvas || !canvas.width) return;
+  const ctx = canvas.getContext("2d");
+  if (editorUndoStack.length >= 15) {
+    editorUndoStack.shift();
+  }
+  editorUndoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+}
+
+function undoBrushStroke() {
+  const canvas = document.getElementById("editorCanvas");
+  if (!canvas || editorUndoStack.length === 0) return;
+  const ctx = canvas.getContext("2d");
+  const prev = editorUndoStack.pop();
+  ctx.putImageData(prev, 0, 0);
+  editorHasUnsavedChanges = true;
+}
+
+function resetBrushEdits() {
+  const canvas = document.getElementById("editorCanvas");
+  if (!canvas || !initialCutoutCanvas || !initialCutoutCanvas.width) return;
+  pushEditorUndoState();
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(initialCutoutCanvas, 0, 0);
+  editorHasUnsavedChanges = true;
+}
+
+function paintBrushSegment(p0, p1) {
+  const canvas = document.getElementById("editorCanvas");
+  if (!canvas || !canvas.width) return;
+  const ctx = canvas.getContext("2d");
+  const radius = Math.max(2, brushSize / 2);
+  const isSoft = document.getElementById("brushSoftToggle")?.checked ?? true;
+
+  const dist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+  const step = Math.max(1, radius * 0.25);
+  const steps = Math.max(1, Math.ceil(dist / step));
+
+  if (brushMode === "erase") {
+    ctx.save();
+    ctx.globalCompositeOperation = "destination-out";
+    for (let i = 0; i <= steps; i++) {
+      const tVal = steps === 0 ? 0 : i / steps;
+      const x = p0.x + (p1.x - p0.x) * tVal;
+      const y = p0.y + (p1.y - p0.y) * tVal;
+      ctx.beginPath();
+      if (isSoft) {
+        const grad = ctx.createRadialGradient(x, y, radius * 0.25, x, y, radius);
+        grad.addColorStop(0, "rgba(0,0,0,1)");
+        grad.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = grad;
+      } else {
+        ctx.fillStyle = "rgba(0,0,0,1)";
+      }
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  } else {
+    // Restore mode: stamp original image pixels onto canvas inside bounding box of stroke
+    const minX = Math.max(0, Math.floor(Math.min(p0.x, p1.x) - radius - 2));
+    const minY = Math.max(0, Math.floor(Math.min(p0.y, p1.y) - radius - 2));
+    const maxX = Math.min(canvas.width, Math.ceil(Math.max(p0.x, p1.x) + radius + 2));
+    const maxY = Math.min(canvas.height, Math.ceil(Math.max(p0.y, p1.y) + radius + 2));
+    const bw = maxX - minX;
+    const bh = maxY - minY;
+    if (bw <= 0 || bh <= 0) return;
+
+    const sCtx = brushStampCanvas.getContext("2d");
+    sCtx.save();
+    sCtx.clearRect(minX, minY, bw, bh);
+    sCtx.globalCompositeOperation = "source-over";
+
+    for (let i = 0; i <= steps; i++) {
+      const tVal = steps === 0 ? 0 : i / steps;
+      const x = p0.x + (p1.x - p0.x) * tVal;
+      const y = p0.y + (p1.y - p0.y) * tVal;
+      sCtx.beginPath();
+      if (isSoft) {
+        const grad = sCtx.createRadialGradient(x, y, radius * 0.25, x, y, radius);
+        grad.addColorStop(0, "rgba(0,0,0,1)");
+        grad.addColorStop(1, "rgba(0,0,0,0)");
+        sCtx.fillStyle = grad;
+      } else {
+        sCtx.fillStyle = "rgba(0,0,0,1)";
+      }
+      sCtx.arc(x, y, radius, 0, Math.PI * 2);
+      sCtx.fill();
+    }
+
+    sCtx.globalCompositeOperation = "source-in";
+    sCtx.drawImage(origOffscreenCanvas, minX, minY, bw, bh, minX, minY, bw, bh);
+    sCtx.restore();
+
+    ctx.save();
+    ctx.globalCompositeOperation = "source-over";
+    ctx.drawImage(brushStampCanvas, minX, minY, bw, bh, minX, minY, bw, bh);
+    ctx.restore();
+  }
+}
+
+function setBrushMode(mode) {
+  brushMode = mode;
+  const restoreBtn = document.getElementById("brushRestoreBtn");
+  const eraseBtn = document.getElementById("brushEraseBtn");
+  const cursor = document.getElementById("brushCursor");
+
+  if (mode === "restore") {
+    restoreBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold btn-primary flex items-center gap-1.5";
+    eraseBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold btn-secondary flex items-center gap-1.5";
+    if (cursor) {
+      cursor.className = "hidden pointer-events-none fixed z-50 rounded-full border-2 border-emerald-400 bg-emerald-400/10";
+    }
+  } else {
+    eraseBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold btn-primary flex items-center gap-1.5";
+    restoreBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold btn-secondary flex items-center gap-1.5";
+    if (cursor) {
+      cursor.className = "hidden pointer-events-none fixed z-50 rounded-full border-2 border-rose-400 bg-rose-400/10";
+    }
+  }
+}
+
+function updateBrushSize(val) {
+  brushSize = parseInt(val, 10) || 32;
+  const label = document.getElementById("brushSizeValue");
+  if (label) label.innerText = `${brushSize}px`;
+}
+
+function toggleEditorGhost(show) {
+  const ghostImg = document.getElementById("editorGhostImg");
+  if (ghostImg) {
+    ghostImg.style.opacity = show ? "0.25" : "0";
+  }
+}
+
+function changeEditorZoom(delta) {
+  editorZoom = Math.max(0.5, Math.min(3.5, Math.round((editorZoom + delta) * 100) / 100));
+  applyEditorZoom();
+}
+
+function resetEditorZoom() {
+  editorZoom = 1.0;
+  applyEditorZoom();
+}
+
+function applyEditorZoom() {
+  const inner = document.getElementById("editorStageInner");
+  const badge = document.getElementById("editorZoomBadge");
+  if (inner) {
+    inner.style.transform = `scale(${editorZoom})`;
+  }
+  if (badge) {
+    badge.innerText = `${Math.round(editorZoom * 100)}%`;
+  }
+}
+
+function syncEditorCanvasToPreviews() {
+  if (!editorHasUnsavedChanges) return null;
+  const canvas = document.getElementById("editorCanvas");
+  if (!canvas || !canvas.width || !currentProcessedData) return null;
+  const updatedDataUrl = canvas.toDataURL("image/png");
+  currentProcessedData.image = updatedDataUrl;
+  document.getElementById("resultImageAfter").src = updatedDataUrl;
+  document.getElementById("sideResultImg").src = updatedDataUrl;
+  document.getElementById("cutoutOnlyImg").src = updatedDataUrl;
+  return updatedDataUrl;
+}
+
+async function applyAndSaveBrushEdits() {
+  const canvas = document.getElementById("editorCanvas");
+  if (!canvas || !canvas.width || !currentProcessedData) return;
+
+  editorHasUnsavedChanges = true;
+  const updatedDataUrl = syncEditorCanvasToPreviews();
+  editorHasUnsavedChanges = false;
+
+  try {
+    const res = await fetch("/api/save-edited", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        image: updatedDataUrl,
+        saved_path: currentProcessedData.saved_path || "",
+        filename: currentFile ? currentFile.name : "image.png"
+      })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.saved_path) {
+        currentProcessedData.saved_path = data.saved_path;
+        const savedBanner = document.getElementById("savedPathBanner");
+        if (savedBanner) {
+          savedBanner.innerText = `${t("toast_saved_to")}${data.saved_path}`;
+          savedBanner.classList.remove("hidden");
+        }
+        showToast(`${t("toast_edits_saved")}: ${data.saved_path}`, "check-circle");
+      } else {
+        showToast(t("toast_edits_saved"), "check-circle");
+      }
+    }
+  } catch (err) {
+    showToast(err.message, "alert-circle");
   }
 }
 

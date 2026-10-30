@@ -6,7 +6,7 @@ import threading
 from typing import Optional, Tuple, Dict, Any
 import numpy as np
 from PIL import Image, ImageFilter
-from scipy.ndimage import binary_erosion, minimum_filter, gaussian_filter
+from scipy.ndimage import binary_erosion, binary_dilation, minimum_filter, gaussian_filter
 import onnxruntime as ort
 from rembg.sessions import sessions_class
 
@@ -136,8 +136,8 @@ def decontaminate_and_clean_edges(
     edge_feather: int = 0
 ) -> Image.Image:
     """
-    Removes white/background halos, clears trapped background pockets between hair/limbs,
-    and unmixes background color spill along the outer contour in ~30ms.
+    Removes white/background halos and clears trapped background pockets between hair/limbs
+    while protecting white foreground subjects (such as white shoes, clothing, or eyes).
     """
     rgb = np.array(rgb_img, dtype=np.float32)
     mask = np.array(mask_img.convert("L"), dtype=np.float32)
@@ -153,25 +153,32 @@ def decontaminate_and_clean_edges(
         bg_diff = np.max(np.abs(rgb - bg_color), axis=2)
         chroma = np.max(rgb, axis=2) - np.min(rgb, axis=2)
         luma = np.mean(rgb, axis=2)
+        bg_luma = float(np.mean(bg_color))
 
-        # 2. Clear trapped pure-background pockets (between hair strands, arms & waist)
-        pocket_depth = 18 * defringe_level
+        # Distinguish dark/colored foreground (hair, skin, colored clothes) from white foreground (white shoes/shirts)
+        dark_or_colored_fg = (mask > 80.0) & ((luma < (bg_luma - 38.0)) | (chroma > 22.0))
+        near_dark_fg = binary_dilation(dark_or_colored_fg, iterations=18)
+        white_fg = (mask > 180.0) & (~dark_or_colored_fg) & (bg_diff >= 4.0)
+        near_white_fg = binary_dilation(white_fg, iterations=12)
+
+        # 2. Clear trapped pure-background pockets between dark/colored hair/limbs without cutting white objects
+        pocket_depth = 14 * defringe_level
         deep_interior = binary_erosion(mask > 200.0, iterations=pocket_depth)
-        pocket_band = (mask > 0.0) & (~deep_interior)
-        pure_bg_pocket = pocket_band & (bg_diff < (8.0 + 4.0 * defringe_level)) & (chroma < 18.0)
+        pocket_band = (mask > 0.0) & (~deep_interior) & near_dark_fg & (~near_white_fg)
+        pure_bg_pocket = pocket_band & (bg_diff < (6.0 + 3.0 * defringe_level)) & (chroma < 15.0)
         mask[pure_bg_pocket] = 0.0
 
-        # 3. Suppress background halo in the outer boundary band (after pocket removal)
-        band_width = 2 + defringe_level * 2
-        solid_core = binary_erosion(mask > 220.0, iterations=band_width)
-        edge_band = (mask > 0.0) & (~solid_core)
+        # 3. Suppress background halo in the outer boundary band of dark/colored contours
+        band_width = 2 + defringe_level
+        solid_core = binary_erosion(mask > 225.0, iterations=band_width)
+        edge_band = (mask > 0.0) & (~solid_core) & binary_dilation(dark_or_colored_fg, iterations=6)
 
-        thresh_diff = 35.0 + 12.0 * defringe_level
-        bg_match = np.clip((thresh_diff - bg_diff) / 32.0, 0.0, 1.0)
-        if np.mean(bg_color) > 180.0:
+        thresh_diff = 32.0 + 10.0 * defringe_level
+        bg_match = np.clip((thresh_diff - bg_diff) / 30.0, 0.0, 1.0)
+        if bg_luma > 180.0:
             neutral_spill = (
-                np.clip((luma - (155.0 - 10.0 * defringe_level)) / 45.0, 0.0, 1.0)
-                * np.clip(((24.0 + 4.0 * defringe_level) - chroma) / 18.0, 0.0, 1.0)
+                np.clip((luma - (160.0 - 8.0 * defringe_level)) / 45.0, 0.0, 1.0)
+                * np.clip(((22.0 + 4.0 * defringe_level) - chroma) / 18.0, 0.0, 1.0)
             )
             bg_match = np.maximum(bg_match, neutral_spill)
 
@@ -179,17 +186,17 @@ def decontaminate_and_clean_edges(
 
         # 4. Morphological 1px edge tightening + smooth anti-aliasing ramp
         eroded_mask = minimum_filter(mask, size=3)
-        outer_ring = (mask > 0.0) & (~binary_erosion(mask > 240.0, iterations=2 + defringe_level))
-        blend_w = min(1.0, 0.45 * defringe_level)
+        outer_ring = (mask > 0.0) & (~binary_erosion(mask > 240.0, iterations=2)) & binary_dilation(dark_or_colored_fg, iterations=4)
+        blend_w = min(1.0, 0.28 * defringe_level)
         mask[outer_ring] = blend_w * eroded_mask[outer_ring] + (1.0 - blend_w) * mask[outer_ring]
 
-        low_clip = 22.0 + 10.0 * defringe_level
-        mask = np.clip((mask - low_clip) * (255.0 / (242.0 - low_clip)), 0.0, 255.0)
-        mask = gaussian_filter(mask, sigma=0.45)
+        low_clip = 20.0
+        mask = np.clip((mask - low_clip) * (255.0 / (244.0 - low_clip)), 0.0, 255.0)
+        mask = gaussian_filter(mask, sigma=0.4)
 
-        # 5. Foreground RGB Color Decontamination on the outer 4px boundary ring
-        decontam_ring = (mask > 0.0) & (~binary_erosion(mask > 245.0, iterations=4))
-        rgb_eroded = np.stack([minimum_filter(rgb[:, :, c], size=5) for c in range(3)], axis=2)
+        # 5. Foreground RGB Color Decontamination on the outer 3px boundary ring
+        decontam_ring = (mask > 0.0) & (~binary_erosion(mask > 245.0, iterations=3)) & binary_dilation(dark_or_colored_fg, iterations=4)
+        rgb_eroded = np.stack([minimum_filter(rgb[:, :, c], size=3) for c in range(3)], axis=2)
         a_norm = np.clip(mask / 255.0, 0.25, 1.0)[:, :, None]
         rgb_unmixed = np.clip((rgb - (1.0 - a_norm) * bg_color) / a_norm, 0.0, 255.0)
         rgb[decontam_ring] = np.minimum(rgb_unmixed[decontam_ring], rgb_eroded[decontam_ring])

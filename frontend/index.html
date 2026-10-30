@@ -242,10 +242,14 @@
         <div class="surface-card p-4 space-y-4">
           <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-theme">
             <!-- View Modes -->
-            <div class="flex items-center space-x-1 surface-input p-1 rounded-xl">
+            <div class="flex flex-wrap items-center space-x-1 surface-input p-1 rounded-xl">
               <button id="viewSplitBtn" onclick="setViewMode('split')" class="px-3 py-1 rounded-lg text-xs font-medium btn-primary" data-i18n="view_split">Split View</button>
               <button id="viewSideBtn" onclick="setViewMode('side')" class="px-3 py-1 rounded-lg text-xs font-medium text-secondary-theme" data-i18n="view_side">Side by Side</button>
               <button id="viewCutoutBtn" onclick="setViewMode('cutout')" class="px-3 py-1 rounded-lg text-xs font-medium text-secondary-theme" data-i18n="view_result">Result Only</button>
+              <button id="viewEditBtn" onclick="setViewMode('edit')" class="px-3 py-1 rounded-lg text-xs font-medium text-secondary-theme flex items-center gap-1.5">
+                <i data-lucide="paintbrush" class="w-3.5 h-3.5 text-purple-400"></i>
+                <span data-i18n="view_edit">Edit / Restore</span>
+              </button>
             </div>
 
             <!-- Background Preview Swatches -->
@@ -292,6 +296,75 @@
             <!-- Result Only -->
             <div id="cutoutOnlyContainer" class="hidden flex items-center justify-center w-full h-[520px]">
               <img id="cutoutOnlyImg" src="" alt="Result" class="max-h-full max-w-full object-contain">
+            </div>
+
+            <!-- Interactive Brush Editor (Restore & Erase) -->
+            <div id="editViewContainer" class="hidden flex flex-col w-full h-[580px] gap-2">
+              <!-- Editor Top Toolbar -->
+              <div class="surface-card px-3 py-2 flex flex-wrap items-center justify-between gap-3 z-20 shrink-0">
+                <!-- Brush Mode: Restore vs Erase -->
+                <div class="flex items-center space-x-1.5">
+                  <button id="brushRestoreBtn" onclick="setBrushMode('restore')" class="px-3 py-1.5 rounded-lg text-xs font-semibold btn-primary flex items-center gap-1.5">
+                    <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+                    <span data-i18n="brush_restore">Restore</span>
+                  </button>
+                  <button id="brushEraseBtn" onclick="setBrushMode('erase')" class="px-3 py-1.5 rounded-lg text-xs font-semibold btn-secondary flex items-center gap-1.5">
+                    <i data-lucide="eraser" class="w-3.5 h-3.5 text-rose-400"></i>
+                    <span data-i18n="brush_erase">Erase</span>
+                  </button>
+                </div>
+
+                <!-- Brush Size & Softness & Ghost Guide -->
+                <div class="flex flex-wrap items-center gap-3">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-secondary-theme" data-i18n="brush_size_label">Size</span>
+                    <input type="range" id="brushSizeSlider" min="4" max="120" value="32" oninput="updateBrushSize(this.value)" class="w-24 accent-purple-600 cursor-pointer">
+                    <span id="brushSizeValue" class="text-xs font-mono text-purple-400 w-10">32px</span>
+                  </div>
+
+                  <label class="flex items-center gap-1.5 text-xs cursor-pointer select-none">
+                    <input type="checkbox" id="brushSoftToggle" checked class="w-3.5 h-3.5 accent-purple-600 rounded">
+                    <span data-i18n="brush_soft_label">Soft Edge</span>
+                  </label>
+
+                  <label class="flex items-center gap-1.5 text-xs cursor-pointer select-none" title="Show faint original image to locate missing parts">
+                    <input type="checkbox" id="editorGhostToggle" checked onchange="toggleEditorGhost(this.checked)" class="w-3.5 h-3.5 accent-purple-600 rounded">
+                    <span data-i18n="brush_guide_label">Original Guide</span>
+                  </label>
+                </div>
+
+                <!-- Zoom, Undo, Reset & Save -->
+                <div class="flex items-center gap-1.5">
+                  <button onclick="changeEditorZoom(-0.25)" class="btn-secondary px-2 py-1 text-xs font-mono" title="Zoom Out">−</button>
+                  <button onclick="resetEditorZoom()" id="editorZoomBadge" class="btn-secondary px-2 py-1 text-xs font-mono" title="Reset Zoom">100%</button>
+                  <button onclick="changeEditorZoom(0.25)" class="btn-secondary px-2 py-1 text-xs font-mono" title="Zoom In">+</button>
+
+                  <div class="h-4 w-px bg-purple-500/20 mx-1"></div>
+
+                  <button id="editorUndoBtn" onclick="undoBrushStroke()" class="btn-secondary px-2.5 py-1.5 text-xs flex items-center gap-1" title="Undo (Ctrl+Z)">
+                    <i data-lucide="undo-2" class="w-3.5 h-3.5 text-purple-400"></i>
+                    <span data-i18n="brush_undo">Undo</span>
+                  </button>
+                  <button onclick="resetBrushEdits()" class="btn-secondary px-2.5 py-1.5 text-xs flex items-center gap-1" title="Reset to AI Output">
+                    <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                    <span data-i18n="brush_reset">Reset</span>
+                  </button>
+                  <button onclick="applyAndSaveBrushEdits()" class="btn-primary px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5">
+                    <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                    <span data-i18n="brush_save">Save Changes</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Interactive Canvas Viewport -->
+              <div id="editorViewport" class="flex-1 w-full relative overflow-auto flex items-center justify-center rounded-xl border border-theme select-none" style="cursor: crosshair;">
+                <div id="editorStageInner" class="relative inline-block origin-center transition-transform duration-75">
+                  <img id="editorGhostImg" src="" alt="" class="absolute inset-0 w-full h-full object-contain pointer-events-none opacity-25">
+                  <canvas id="editorCanvas" class="block max-h-[480px] max-w-full object-contain relative z-10"></canvas>
+                </div>
+                <!-- Floating Brush Cursor Ring -->
+                <div id="brushCursor" class="hidden pointer-events-none fixed z-50 rounded-full border-2 border-emerald-400 bg-emerald-400/10" style="transform: translate(-50%, -50%);"></div>
+              </div>
             </div>
           </div>
 
