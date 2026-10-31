@@ -28,7 +28,7 @@ Inspect fine hair strands and complex edges using the static split-view slider, 
 Add customizable contour strokes (`0–36 px`) with instant color presets or custom colors directly over your cutout, and save the outlined PNG to your output folder.
 
 <div align="center">
-  <img src="assets/screenshots/outline-demo.gif" alt="Removo Subject Outline Live Demo" width="100%">
+  <img src="assets/screenshots/outline-demo-full.gif" alt="Removo Subject Outline Live Demo" width="100%">
 </div>
 
 ---
