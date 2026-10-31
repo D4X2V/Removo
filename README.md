@@ -1,7 +1,7 @@
 # Removo
 
 <div align="center">
-  <img src="assets/logo.svg" alt="Removo Logo" width="120" height="120">
+  <img src="assets/logo.svg" alt="Removo Logo" width="110" height="110">
   <br>
   <p><strong>Local GPU-accelerated background removal and cutout refinement desktop utility.</strong></p>
 
@@ -13,27 +13,55 @@
 
 ---
 
-## Overview
+## Preview & Live Workflow
 
-**Removo** is a standalone desktop application for removing image backgrounds and refining cutouts locally. It executes neural segmentation models directly on your GPU or CPU via ONNX Runtime, keeping all image processing offline with zero cloud dependencies.
+### Interactive Split Comparison
+Inspect fine hair strands and complex edges using the static split-view slider, backdrop color swatches, and one-click clipboard export.
 
-### Key Features
+<div align="center">
+  <img src="assets/screenshots/split-comparison.png" alt="Removo Split View Comparison" width="100%">
+</div>
+
+---
+
+### Real-Time Subject Outline (Stroke)
+Add customizable contour strokes (`0–36 px`) with instant color presets or custom colors directly over your cutout, and save the outlined PNG to your output folder.
+
+<div align="center">
+  <img src="assets/screenshots/outline-demo.gif" alt="Removo Subject Outline Live Demo" width="100%">
+</div>
+
+---
+
+### Staging, Model Parameters & Side-by-Side Inspection
+Images are staged upon upload or clipboard paste (`Ctrl + V`) without automatic execution, allowing you to configure the segmentation model and edge cleanup options before rendering.
+
+| 1. Staging & Model Parameters | 2. Side-by-Side Result View |
+| :---: | :---: |
+| <img src="assets/screenshots/workspace-parameters.png" alt="Staging and Parameters" width="100%"> | <img src="assets/screenshots/side-by-side-view.png" alt="Side by Side View" width="100%"> |
+
+<div align="center">
+  <img src="assets/screenshots/anime-sprite-staging.png" alt="2D Anime and Visual Novel Sprite Workflow" width="100%">
+</div>
+
+---
+
+## Key Features
 
 - **GPU-Accelerated Segmentation Models:**
   - `isnet-general-use` (IS-Net General) — Ultra-fast general-purpose segmentation for photos, people, and products (~0.3s on GPU).
-  - `isnet-anime` (IS-Net Anime & Illustration) — High-precision segmentation for 2D art, characters, and fine hair strands (~0.2s on GPU).
+  - `isnet-anime` (IS-Net Anime & Illustration) — High-precision segmentation for 2D art, visual novel sprites, and fine character hair (~0.2s on GPU).
   - `bria-rmbg` (BRIA RMBG-1.4) — Studio-grade commercial segmentation model (~3s on GPU).
   - `birefnet-general-lite` (BiRefNet Lite) — High-resolution bilateral reference network for intricate contours.
 - **Smart Edge Decontamination (Defringe):**
   - Automatically removes background color spill and trapped background pockets while preserving white foreground details.
-- **Interactive Brush Editor (Restore & Erase):**
+- **Fullscreen Interactive Brush Editor (Restore & Erase):**
   - **Restore** missing details from the original image or **Erase** unwanted regions using soft or hard brushes.
   - **Original Guide** overlay to inspect the source image underneath transparent areas while painting.
   - **Cursor-Anchored Wheel Zoom** (scroll wheel to zoom directly toward the pointer), **Right-Click / Spacebar Drag** to pan, **`Alt + Wheel`** to resize the brush, and **Undo / Redo (`Ctrl + Z` / `Ctrl + Y`)**.
 - **Post-Generation Subject Outline:**
-  - Optional customizable contour stroke with adjustable thickness (`0–36 px`), color presets, and custom color picker, exported and saved directly with the cutout.
+  - Customizable contour stroke with adjustable thickness (`0–36 px`), color presets, and custom color picker, visible live in both the preview views and the brush editor.
 - **Manual Execution & Auto-Save Workflow:**
-  - Uploading or pasting (`Ctrl + V`) an image stages it for inspection without triggering automatic rendering. Processing starts only when clicking **Remove Background**.
   - Automatically writes processed and edited outputs to your configured Output Folder, prompting with a native directory selector if none is set.
 - **Themes & Localization:**
   - Dark Purple and Light Purple themes.
@@ -45,12 +73,16 @@
 
 ```text
 Removo/
-├── assets/                     # SVG, PNG, and multi-resolution ICO icons
+├── assets/
+│   ├── screenshots/            # Application workflow previews and demos
+│   ├── app.ico                 # Multi-resolution Windows icon
+│   ├── logo.png                # Raster application icon
+│   └── logo.svg                # Vector application logo
 ├── backend/
 │   ├── engine.py               # DirectML GPU / ONNX session manager and edge decontamination
 │   └── server.py               # FastAPI endpoints, native folder selector, and auto-save
 ├── frontend/
-│   ├── index.html              # Application layout (Single, Batch, Settings)
+│   ├── index.html              # Application layout (Single, Batch, Settings, Editor Overlay)
 │   ├── style.css               # Dark & Light purple themes
 │   └── app.js                  # Brush editor, subject outline, i18n, and state controller
 ├── create_desktop_shortcut.py  # Creates a Windows desktop shortcut
