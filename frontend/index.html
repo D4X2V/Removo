@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
@@ -266,12 +266,54 @@
             </div>
           </div>
 
+          <!-- Subject Outline Bar in Preview Mode -->
+          <div class="surface-input px-3.5 py-2.5 rounded-xl flex flex-wrap items-center justify-between gap-4">
+            <div class="flex flex-wrap items-center gap-3">
+              <div class="flex items-center gap-2">
+                <i data-lucide="sparkles" class="w-4 h-4 text-purple-400"></i>
+                <span class="text-xs font-semibold" data-i18n="outline_title">Subject Outline</span>
+              </div>
+
+              <!-- Thickness Slider (Preview) -->
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-secondary-theme" data-i18n="outline_width_label">Thickness</span>
+                <input type="range" id="previewOutlineWidthSlider" min="0" max="36" value="0" oninput="onOutlineControlsChange(this.value)" class="w-28 accent-purple-600 cursor-pointer">
+                <span id="previewOutlineWidthValue" class="text-xs font-mono text-purple-400 w-10">0px</span>
+              </div>
+
+              <!-- Outline Color Swatches (Preview) -->
+              <div class="flex items-center gap-1.5 pl-1">
+                <span class="text-xs text-secondary-theme mr-1" data-i18n="outline_color_label">Color:</span>
+                <button onclick="setOutlineColor('#FFFFFF')" class="w-5 h-5 rounded-full border border-gray-400 bg-white hover:scale-110 transition-transform" title="White"></button>
+                <button onclick="setOutlineColor('#111111')" class="w-5 h-5 rounded-full border border-gray-600 bg-neutral-900 hover:scale-110 transition-transform" title="Black"></button>
+                <button onclick="setOutlineColor('#8B5CF6')" class="w-5 h-5 rounded-full border border-purple-300 bg-purple-500 hover:scale-110 transition-transform" title="Purple"></button>
+                <button onclick="setOutlineColor('#06B6D4')" class="w-5 h-5 rounded-full border border-cyan-300 bg-cyan-500 hover:scale-110 transition-transform" title="Cyan"></button>
+                <button onclick="setOutlineColor('#F59E0B')" class="w-5 h-5 rounded-full border border-amber-300 bg-amber-500 hover:scale-110 transition-transform" title="Gold"></button>
+                <button onclick="setOutlineColor('#F43F5E')" class="w-5 h-5 rounded-full border border-rose-300 bg-rose-500 hover:scale-110 transition-transform" title="Rose"></button>
+                <label class="w-6 h-6 rounded-lg border border-purple-400/60 surface-card cursor-pointer flex items-center justify-center ml-0.5" title="Custom Color">
+                  <input type="color" id="previewOutlineColorPicker" value="#FFFFFF" oninput="setOutlineColor(this.value)" class="opacity-0 w-0 h-0">
+                  <span id="previewOutlineActiveSwatch" class="w-3.5 h-3.5 rounded-sm bg-white border border-black/20"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button id="previewOutlineClearBtn" onclick="clearSubjectOutline()" class="btn-secondary px-2.5 py-1 text-xs hidden" data-i18n="outline_clear_btn">
+                Remove Outline
+              </button>
+              <button id="previewOutlineSaveBtn" onclick="saveCurrentResultToDisk()" class="btn-primary px-3 py-1 text-xs font-semibold flex items-center gap-1.5 hidden">
+                <i data-lucide="save" class="w-3.5 h-3.5"></i>
+                <span data-i18n="outline_save_btn">Save with Outline</span>
+              </button>
+            </div>
+          </div>
+
           <!-- Canvas Area -->
           <div id="stageWrapper" class="w-full flex items-center justify-center min-h-[460px] bg-transparency-grid rounded-xl relative overflow-hidden p-2">
             <!-- Split Slider -->
             <div id="splitViewContainer" class="comparison-container w-full h-[520px] flex items-center justify-center relative">
               <img id="resultImageAfter" src="" alt="Result" class="absolute max-h-full max-w-full object-contain pointer-events-none">
-              <div id="splitBeforeLayer" class="comparison-before flex items-center justify-center" style="width: 50%;">
+              <div id="splitBeforeLayer" class="comparison-before w-full h-full flex items-center justify-center" style="clip-path: inset(0 50% 0 0);">
                 <img id="splitOriginalImage" src="" alt="Original" class="absolute max-h-full max-w-full object-contain pointer-events-none">
               </div>
               <div id="splitDivider" class="comparison-divider" style="left: 50%;">
@@ -513,7 +555,7 @@
     <span id="toastMsg">Notification</span>
   </div>
 
-  ﻿  <!-- Fullscreen Editor Overlay -->
+    <!-- Fullscreen Editor Overlay -->
   <div id="editViewContainer" class="hidden fixed inset-0 z-[70] flex" style="background: var(--bg-main);">
 
     <!-- Vertical Tool Rail -->
@@ -556,6 +598,10 @@
           <button onclick="changeEditorZoom(0.25)" class="btn-secondary px-2 py-1 text-xs font-mono" title="Zoom In">+</button>
         </div>
         <div class="flex items-center gap-2">
+          <button onclick="toggleEditorPanel()" class="btn-secondary px-3 py-1.5 text-xs flex items-center gap-1.5" title="Brush & Outline Settings (P)">
+            <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5 text-purple-400"></i>
+            <span data-i18n="editor_options_btn">Brush & Outline</span>
+          </button>
           <button onclick="applyAndSaveBrushEdits()" class="btn-primary px-3.5 py-1.5 text-xs font-semibold flex items-center gap-1.5">
             <i data-lucide="check" class="w-3.5 h-3.5"></i>
             <span data-i18n="brush_save">Save Changes</span>
@@ -571,6 +617,7 @@
       <div id="editorViewport" class="flex-1 w-full relative overflow-hidden flex items-center justify-center bg-transparency-grid select-none" style="cursor: none;">
         <div id="editorStageInner" class="relative inline-block origin-center">
           <img id="editorGhostImg" src="" alt="" class="absolute inset-0 w-full h-full object-contain pointer-events-none opacity-25">
+          <canvas id="editorOutlineCanvas" class="absolute inset-0 w-full h-full pointer-events-none z-[5]"></canvas>
           <canvas id="editorCanvas" class="block relative z-10"></canvas>
         </div>
 
@@ -629,7 +676,7 @@
               <span class="text-secondary-theme" data-i18n="outline_width_label">Thickness</span>
               <span id="outlineWidthValue" class="font-mono text-purple-400">0px</span>
             </div>
-            <input type="range" id="outlineWidthSlider" min="0" max="36" value="0" oninput="onOutlineControlsChange()" class="w-full accent-purple-600 cursor-pointer">
+            <input type="range" id="outlineWidthSlider" min="0" max="36" value="0" oninput="onOutlineControlsChange(this.value)" class="w-full accent-purple-600 cursor-pointer">
             <div class="flex flex-wrap items-center gap-2">
               <button onclick="setOutlineColor('#FFFFFF')" class="w-6 h-6 rounded-full border border-gray-400 bg-white hover:scale-110 transition-transform" title="White"></button>
               <button onclick="setOutlineColor('#111111')" class="w-6 h-6 rounded-full border border-gray-600 bg-neutral-900 hover:scale-110 transition-transform" title="Black"></button>

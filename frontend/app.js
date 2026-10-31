@@ -1,4 +1,4 @@
-﻿// Removo — Frontend Controller
+// Removo — Frontend Controller
 
 let currentFile = null;
 let currentProcessedData = null;
@@ -66,6 +66,7 @@ const I18N = {
     editor_shortcuts_hint: "Wheel: Zoom to cursor • Right-Click or Space: Move • Alt + Wheel: Brush Size • Ctrl+Z: Undo",
     toast_edits_saved: "Edited image saved",
     editor_close: "Close",
+    editor_options_btn: "Brush & Outline",
     panel_brush_title: "Brush",
     save_status_saving: "Saving...",
     save_status_done: "Saved to your output folder",
@@ -155,6 +156,7 @@ const I18N = {
     editor_shortcuts_hint: "Rueda: Zoom al cursor • Clic Derecho o Espacio: Mover • Alt + Rueda: Tamaño Pincel • Ctrl+Z: Deshacer",
     toast_edits_saved: "Imagen editada guardada",
     editor_close: "Cerrar",
+    editor_options_btn: "Pincel y Contorno",
     panel_brush_title: "Pincel",
     save_status_saving: "Guardando...",
     save_status_done: "Guardado en tu carpeta de salida",
@@ -678,7 +680,7 @@ function setSplitPosition(pct) {
   const beforeLayer = document.getElementById("splitBeforeLayer");
   if (divider && beforeLayer) {
     divider.style.left = `${pct}%`;
-    beforeLayer.style.width = `${pct}%`;
+    beforeLayer.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
   }
 }
 
@@ -883,6 +885,7 @@ function setupBrushEditor() {
     if (isPainting) {
       isPainting = false;
       lastPaintPt = null;
+      if (outlineWidth > 0) renderEditorOutlineLayer();
     }
   };
 
@@ -1069,6 +1072,7 @@ function undoBrushStroke() {
   const prev = editorUndoStack.pop();
   ctx.putImageData(prev, 0, 0);
   editorHasUnsavedChanges = true;
+  if (outlineWidth > 0) renderEditorOutlineLayer();
 }
 
 function redoBrushStroke() {
@@ -1079,6 +1083,7 @@ function redoBrushStroke() {
   const next = editorRedoStack.pop();
   ctx.putImageData(next, 0, 0);
   editorHasUnsavedChanges = true;
+  if (outlineWidth > 0) renderEditorOutlineLayer();
 }
 
 function resetBrushEdits() {
@@ -1090,6 +1095,7 @@ function resetBrushEdits() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(initialCutoutCanvas, 0, 0);
   editorHasUnsavedChanges = true;
+  if (outlineWidth > 0) renderEditorOutlineLayer();
 }
 
 function paintBrushSegment(p0, p1) {
@@ -1234,7 +1240,10 @@ function applyEditorTransform() {
   if (inner) {
     inner.style.transform = `translate(${editorPanX}px, ${editorPanY}px) scale(${editorZoom})`;
     const cv = document.getElementById("editorCanvas");
-    if (cv) cv.style.imageRendering = editorZoom > 2.5 ? "pixelated" : "auto";
+    const ocv = document.getElementById("editorOutlineCanvas");
+    const ir = editorZoom > 2.5 ? "pixelated" : "auto";
+    if (cv) cv.style.imageRendering = ir;
+    if (ocv) ocv.style.imageRendering = ir;
   }
   if (badge) {
     badge.innerText = `${Math.round(editorZoom * 100)}%`;
@@ -1270,56 +1279,123 @@ let outlineColor = "#FFFFFF";
 let outlineSilhouetteCanvas = null;
 let outlineOutputCanvas = null;
 
+function syncOutlineUIControls() {
+  const sliders = [
+    document.getElementById("outlineWidthSlider"),
+    document.getElementById("previewOutlineWidthSlider")
+  ];
+  const labels = [
+    document.getElementById("outlineWidthValue"),
+    document.getElementById("previewOutlineWidthValue")
+  ];
+  const pickers = [
+    document.getElementById("outlineColorPicker"),
+    document.getElementById("previewOutlineColorPicker")
+  ];
+  const swatches = [
+    document.getElementById("outlineActiveSwatch"),
+    document.getElementById("previewOutlineActiveSwatch")
+  ];
+  const clearBtns = [
+    document.getElementById("outlineClearBtn"),
+    document.getElementById("previewOutlineClearBtn")
+  ];
+  const saveBtns = [
+    document.getElementById("outlineSaveBtn"),
+    document.getElementById("previewOutlineSaveBtn")
+  ];
+
+  sliders.forEach(s => { if (s) s.value = outlineWidth; });
+  labels.forEach(l => { if (l) l.innerText = `${outlineWidth}px`; });
+  pickers.forEach(p => { if (p) p.value = outlineColor; });
+  swatches.forEach(sw => { if (sw) sw.style.backgroundColor = outlineColor; });
+
+  clearBtns.forEach(b => {
+    if (b) b.classList.toggle("hidden", outlineWidth <= 0);
+  });
+  saveBtns.forEach(b => {
+    if (b) b.classList.toggle("hidden", outlineWidth <= 0);
+  });
+}
+
 function resetOutlineControls() {
   outlineWidth = 0;
-  const slider = document.getElementById("outlineWidthSlider");
-  const valLabel = document.getElementById("outlineWidthValue");
-  const clearBtn = document.getElementById("outlineClearBtn");
-  const saveBtn = document.getElementById("outlineSaveBtn");
-  if (slider) slider.value = 0;
-  if (valLabel) valLabel.innerText = "0px";
-  if (clearBtn) clearBtn.classList.add("hidden");
-  if (saveBtn) saveBtn.classList.add("hidden");
+  syncOutlineUIControls();
+  renderEditorOutlineLayer();
 }
 
 function setOutlineColor(hexColor) {
   outlineColor = hexColor;
-  const picker = document.getElementById("outlineColorPicker");
-  const swatch = document.getElementById("outlineActiveSwatch");
-  if (picker) picker.value = hexColor;
-  if (swatch) swatch.style.backgroundColor = hexColor;
-
-  // If user clicks a color while thickness is 0, automatically set thickness to 8px so outline is immediately visible
-  const slider = document.getElementById("outlineWidthSlider");
-  if (slider && parseInt(slider.value, 10) === 0) {
-    slider.value = 8;
+  if (outlineWidth === 0) {
+    outlineWidth = 8;
   }
-  onOutlineControlsChange();
+  syncOutlineUIControls();
+  renderEditorOutlineLayer();
+  syncEditorCanvasToPreviews();
 }
 
 function clearSubjectOutline() {
-  resetOutlineControls();
+  outlineWidth = 0;
+  syncOutlineUIControls();
+  renderEditorOutlineLayer();
   syncEditorCanvasToPreviews();
 }
 
-function onOutlineControlsChange() {
-  const slider = document.getElementById("outlineWidthSlider");
-  const valLabel = document.getElementById("outlineWidthValue");
-  const clearBtn = document.getElementById("outlineClearBtn");
-  const saveBtn = document.getElementById("outlineSaveBtn");
-
-  outlineWidth = slider ? parseInt(slider.value, 10) || 0 : 0;
-  if (valLabel) valLabel.innerText = `${outlineWidth}px`;
-
-  if (outlineWidth > 0) {
-    if (clearBtn) clearBtn.classList.remove("hidden");
-    if (saveBtn) saveBtn.classList.remove("hidden");
+function onOutlineControlsChange(newVal) {
+  if (newVal !== undefined) {
+    outlineWidth = parseInt(newVal, 10) || 0;
   } else {
-    if (clearBtn) clearBtn.classList.add("hidden");
-    if (saveBtn) saveBtn.classList.add("hidden");
+    const slider = document.getElementById("outlineWidthSlider");
+    outlineWidth = slider ? parseInt(slider.value, 10) || 0 : 0;
+  }
+  syncOutlineUIControls();
+  renderEditorOutlineLayer();
+  syncEditorCanvasToPreviews();
+}
+
+function renderEditorOutlineLayer() {
+  const canvas = document.getElementById("editorCanvas");
+  const editorOutlineCanvas = document.getElementById("editorOutlineCanvas");
+  if (!canvas || !canvas.width || !editorOutlineCanvas) return;
+
+  const w = canvas.width;
+  const h = canvas.height;
+  if (editorOutlineCanvas.width !== w || editorOutlineCanvas.height !== h) {
+    editorOutlineCanvas.width = w;
+    editorOutlineCanvas.height = h;
   }
 
-  syncEditorCanvasToPreviews();
+  const eoCtx = editorOutlineCanvas.getContext("2d");
+  eoCtx.clearRect(0, 0, w, h);
+
+  if (outlineWidth <= 0) return;
+
+  if (!outlineSilhouetteCanvas) outlineSilhouetteCanvas = document.createElement("canvas");
+  outlineSilhouetteCanvas.width = w;
+  outlineSilhouetteCanvas.height = h;
+
+  const sCtx = outlineSilhouetteCanvas.getContext("2d");
+  sCtx.clearRect(0, 0, w, h);
+  sCtx.globalCompositeOperation = "source-over";
+  sCtx.drawImage(canvas, 0, 0);
+  sCtx.globalCompositeOperation = "source-in";
+  sCtx.fillStyle = outlineColor;
+  sCtx.fillRect(0, 0, w, h);
+
+  const scaleFactor = Math.max(1.0, Math.min(w, h) / 900);
+  const radiusPx = Math.max(1, outlineWidth * scaleFactor);
+
+  const rings = [0.35, 0.7, 1.0];
+  for (const rFrac of rings) {
+    const r = radiusPx * rFrac;
+    const steps = Math.max(16, Math.min(40, Math.ceil(2 * Math.PI * r * 0.75)));
+    for (let i = 0; i < steps; i++) {
+      const angle = (i / steps) * Math.PI * 2;
+      const dx = Math.cos(angle) * r;
+      const dy = Math.sin(angle) * r;
+      eoCtx.drawImage(outlineSilhouetteCanvas, dx, dy);
+    }
+  }
 }
 
 function composeCutoutWithOutline() {
@@ -1333,45 +1409,19 @@ function composeCutoutWithOutline() {
   const w = canvas.width;
   const h = canvas.height;
 
-  if (!outlineSilhouetteCanvas) outlineSilhouetteCanvas = document.createElement("canvas");
-  if (!outlineOutputCanvas) outlineOutputCanvas = document.createElement("canvas");
+  renderEditorOutlineLayer();
+  const editorOutlineCanvas = document.getElementById("editorOutlineCanvas");
 
-  outlineSilhouetteCanvas.width = w;
-  outlineSilhouetteCanvas.height = h;
+  if (!outlineOutputCanvas) outlineOutputCanvas = document.createElement("canvas");
   outlineOutputCanvas.width = w;
   outlineOutputCanvas.height = h;
 
-  // 1. Build solid colored silhouette from cutout alpha
-  const sCtx = outlineSilhouetteCanvas.getContext("2d");
-  sCtx.clearRect(0, 0, w, h);
-  sCtx.globalCompositeOperation = "source-over";
-  sCtx.drawImage(canvas, 0, 0);
-  sCtx.globalCompositeOperation = "source-in";
-  sCtx.fillStyle = outlineColor;
-  sCtx.fillRect(0, 0, w, h);
-
-  // 2. Multi-ring circular dilation for smooth sticker/contour stroke
   const oCtx = outlineOutputCanvas.getContext("2d");
   oCtx.clearRect(0, 0, w, h);
   oCtx.globalCompositeOperation = "source-over";
-
-  // Scale pixel radius proportionally to image dimensions
-  const scaleFactor = Math.max(1.0, Math.min(w, h) / 900);
-  const radiusPx = Math.max(1, outlineWidth * scaleFactor);
-
-  const rings = [0.35, 0.7, 1.0];
-  for (const rFrac of rings) {
-    const r = radiusPx * rFrac;
-    const steps = Math.max(16, Math.min(40, Math.ceil(2 * Math.PI * r * 0.75)));
-    for (let i = 0; i < steps; i++) {
-      const angle = (i / steps) * Math.PI * 2;
-      const dx = Math.cos(angle) * r;
-      const dy = Math.sin(angle) * r;
-      oCtx.drawImage(outlineSilhouetteCanvas, dx, dy);
-    }
+  if (editorOutlineCanvas) {
+    oCtx.drawImage(editorOutlineCanvas, 0, 0);
   }
-
-  // 3. Draw sharp original/edited subject cutout on top
   oCtx.drawImage(canvas, 0, 0);
 
   return outlineOutputCanvas.toDataURL("image/png");
@@ -1624,8 +1674,15 @@ function fitEditorCanvasToViewport() {
   let vh = viewport.clientHeight;
   if (!vw || !vh) { vw = 900; vh = 480; }
   const scale = Math.min((vw - 24) / canvas.width, (vh - 24) / canvas.height);
-  canvas.style.width = `${Math.max(50, Math.floor(canvas.width * scale))}px`;
-  canvas.style.height = `${Math.max(50, Math.floor(canvas.height * scale))}px`;
+  const wPx = `${Math.max(50, Math.floor(canvas.width * scale))}px`;
+  const hPx = `${Math.max(50, Math.floor(canvas.height * scale))}px`;
+  canvas.style.width = wPx;
+  canvas.style.height = hPx;
+  const ocv = document.getElementById("editorOutlineCanvas");
+  if (ocv) {
+    ocv.style.width = wPx;
+    ocv.style.height = hPx;
+  }
 }
 
 window.addEventListener("resize", () => {
