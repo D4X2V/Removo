@@ -44,7 +44,7 @@ AVAILABLE_MODELS = {
 }
 
 def _build_session(model_name: str):
-    """Instantiate ONNX session on the discrete GPU (DirectML device 1) with safe fallback."""
+    """Instantiate ONNX session with DirectML GPU acceleration or CPU fallback."""
     global _ACTIVE_PROVIDER
     target_cls = None
     for sc in sessions_class:
@@ -58,7 +58,7 @@ def _build_session(model_name: str):
     model_path = str(target_cls.download_models())
     avail = ort.get_available_providers()
 
-    # Use DirectML on discrete GPU (device_id=1 is NVIDIA RTX 4060 on hybrid laptops) for supported models
+    # Attempt DirectML hardware acceleration across available graphics adapters (NVIDIA, AMD, Intel)
     if "DmlExecutionProvider" in avail and model_name != "birefnet-general-lite":
         for dev_id in (1, 0):
             try:
@@ -76,7 +76,7 @@ def _build_session(model_name: str):
                         "CPUExecutionProvider"
                     ]
                 )
-                _ACTIVE_PROVIDER = f"DirectML GPU (Device {dev_id})"
+                _ACTIVE_PROVIDER = f"DirectML GPU (Adapter {dev_id})"
                 return sess
             except Exception as e:
                 logger.warning(f"DirectML dev {dev_id} fallback for {model_name}: {e}")

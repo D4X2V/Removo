@@ -101,6 +101,7 @@ Removo/
 
 - Python 3.10+
 - Windows 10/11 (with Edge, Chrome, or Brave for standalone `--app` window mode)
+- DirectX 12 compatible GPU (NVIDIA, AMD, or Intel) recommended for hardware acceleration (CPU fallback supported)
 
 ### Installation
 
