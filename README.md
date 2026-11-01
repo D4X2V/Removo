@@ -127,4 +127,4 @@ python create_desktop_shortcut.py
 
 ## License
 
-Released under the [MIT License](LICENSE). Created by [Diego Villanueva](https://github.com/Diego-Villanueva-v).
+Released under the [MIT License](LICENSE). Created by [D4X2V](https://github.com/D4X2V).
